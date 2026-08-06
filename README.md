@@ -7,7 +7,7 @@
     <img alt="SpaceXAI logo" src="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png" width="96">
   </picture>
   <br>
-  IntelliHelper CLI (<code>intellihelper</code>)
+  IntelliHelper CLI (<code>intelli</code>)
 </h1>
 
 **IntelliHelper CLI** is SpaceXAI's terminal-based AI coding agent. It runs as a
@@ -26,9 +26,9 @@ Protocol (ACP).
 
 ![IntelliHelper CLI TUI](https://media.x.ai/v1/website/universe-tui-screenshot-6f7a0837.png)
 
-**Learn more about IntelliHelper CLI at [x.ai/cli](https://x.ai/cli)**
+**Install & downloads: [cli.intellihelper.in](https://cli.intellihelper.in)**
 
-This repository contains the Rust source for the `intellihelper` CLI/TUI and its agent
+This repository contains the Rust source for the `intelli` CLI/TUI and its agent
 runtime. It is synced periodically from the SpaceXAI monorepo.
 
 A small `SOURCE_REV` file at the root records the full monorepo commit SHA
@@ -43,13 +43,13 @@ for the version of the code present in this tree.
 Prebuilt binaries are published for macOS, Linux, and Windows:
 
 ```sh
-curl -fsSL https://x.ai/cli/install.sh | bash   # macOS / Linux / Git Bash
-irm https://x.ai/cli/install.ps1 | iex          # Windows PowerShell
-intellihelper --version
+curl -fsSL https://cli.intellihelper.in/install.sh | bash   # macOS / Linux / Git Bash
+irm https://cli.intellihelper.in/install.ps1 | iex          # Windows PowerShell
+intelli --version
 ```
 
-See the [changelog](https://x.ai/build/changelog) for the latest fixes,
-features, and improvements in each release.
+See GitHub [Releases](https://github.com/IntelliHelper/intellihelper-cli/releases)
+for fixes and features in each version.
 
 ## Building from source
 
@@ -79,13 +79,13 @@ cargo check -p intellihelper-pager-bin            # fast validation
 ```
 
 The binary artifact is named `intellihelper-pager`; official installs ship it as
-`intellihelper`. On first launch it opens your browser to authenticate — see the
+`intelli`. Configure models via `~/.intellihelper/config.toml` (BYOK) — see the
 [authentication guide](crates/codegen/intellihelper-pager/docs/user-guide/02-authentication.md).
 
 ## Documentation
 
-Full online documentation is available at
-[docs.x.ai/build/overview](https://docs.x.ai/build/overview).
+Install endpoint: [cli.intellihelper.in](https://cli.intellihelper.in)
+(CDN layout: [`docs/cli-cdn-layout.md`](docs/cli-cdn-layout.md)).
 
 The user guide ships with the pager crate:
 [`crates/codegen/intellihelper-pager/docs/user-guide/`](crates/codegen/intellihelper-pager/docs/user-guide/)

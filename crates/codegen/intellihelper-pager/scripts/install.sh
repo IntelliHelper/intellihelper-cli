@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# IntelliHelper CLI installer — https://x.ai/cli/install.sh
+# IntelliHelper CLI installer — https://cli.intellihelper.in/install.sh
 #
 # Auth: INTELLIHELPER_DEPLOYMENT_KEY (takes precedence) or ~/.intellihelper/auth.json from `intellihelper login`.
 # Env: INTELLIHELPER_CHANNEL (stable|alpha|enterprise, default: stable), INTELLIHELPER_BIN_DIR, INTELLIHELPER_PROXY_URL
 #
 # Usage:
-#   curl -fsSL https://x.ai/cli/install.sh | bash            # latest stable
-#   curl -fsSL https://x.ai/cli/install.sh | bash -s 0.1.42  # specific version
-#   INTELLIHELPER_DEPLOYMENT_KEY=<key> bash <(curl -fsSL https://x.ai/cli/install.sh)
+#   curl -fsSL https://cli.intellihelper.in/install.sh | bash            # latest stable
+#   curl -fsSL https://cli.intellihelper.in/install.sh | bash -s 0.1.42  # specific version
+#   INTELLIHELPER_DEPLOYMENT_KEY=<key> bash <(curl -fsSL https://cli.intellihelper.in/install.sh)
 #
 # Windows: run under Git for Windows / MSYS2 Bash (same curl | bash flow); WSL
 # uses the Linux binary.
@@ -151,8 +151,8 @@ case "$(uname -m)" in
     *)                    echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-BASE_URL_PRIMARY="https://x.ai/cli"
-BASE_URL_FALLBACK="https://storage.googleapis.com/intellihelper-build-public-artifacts/cli"
+BASE_URL_PRIMARY="https://cli.intellihelper.in"
+BASE_URL_FALLBACK="https://github.com/IntelliHelper/intellihelper-cli/releases/latest/download"
 DOWNLOAD_DIR="$HOME/.intellihelper/downloads"
 BIN_DIR="${INTELLIHELPER_BIN_DIR:-$HOME/.intellihelper/bin}"
 mkdir -p "$DOWNLOAD_DIR" "$BIN_DIR"
@@ -160,7 +160,7 @@ mkdir -p "$DOWNLOAD_DIR" "$BIN_DIR"
 platform="${os}-${arch}"
 CHANNEL="${INTELLIHELPER_CHANNEL:-stable}"
 
-# Pick a working BASE_URL: try Cloudflare-fronted x.ai first, fall back to
+# Pick a working BASE_URL: try cli.intellihelper.in first, fall back to
 # direct GCS if it's unreachable. The probe doubles as the channel-pointer
 # fetch when no explicit TARGET was passed, so the happy path costs zero
 # extra HTTP requests.
@@ -169,7 +169,7 @@ probe_result=$(download_file "${BASE_URL_PRIMARY}/${CHANNEL}" 2>/dev/null) || tr
 if [ -n "$probe_result" ]; then
     BASE_URL="$BASE_URL_PRIMARY"
 else
-    echo "Note: ${BASE_URL_PRIMARY} unreachable, falling back to direct GCS." >&2
+    echo "Note: ${BASE_URL_PRIMARY} unreachable, falling back to GitHub Releases." >&2
     BASE_URL="$BASE_URL_FALLBACK"
     probe_result=$(download_file "${BASE_URL}/${CHANNEL}" 2>/dev/null) || true
 fi
@@ -232,7 +232,7 @@ if [ "$os" = "windows" ]; then
     mv -f "$binary_tmp" "$binary_path"
     # Symlinks require Developer Mode on Windows; copy instead.
     # If the exe is locked by a running process, rename it aside then retry.
-    for bin_name in intellihelper.exe agent.exe; do
+    for bin_name in intelli.exe; do
         rm -f "$BIN_DIR/$bin_name.old" 2>/dev/null || true  # stale backup from prior update
         if ! cp -f "$binary_path" "$BIN_DIR/$bin_name" 2>/dev/null; then
             mv -f "$BIN_DIR/$bin_name" "$BIN_DIR/$bin_name.old" 2>/dev/null || true
@@ -244,7 +244,7 @@ if [ "$os" = "windows" ]; then
             fi
         fi
     done
-    echo "  Binary installed to $BIN_DIR/intellihelper.exe and $BIN_DIR/agent.exe." >&2
+    echo "  Binary installed to $BIN_DIR/intelli.exe." >&2
 else
     chmod +x "$binary_tmp"
     if ! "$binary_tmp" --version </dev/null >/dev/null 2>&1; then
@@ -261,18 +261,17 @@ else
     else
         link_target="$binary_path"
     fi
-    ln -sf "$link_target" "$BIN_DIR/intellihelper"
-    ln -sf "$link_target" "$BIN_DIR/agent"
-    echo "  Binary linked to $BIN_DIR/intellihelper and $BIN_DIR/agent." >&2
+    ln -sf "$link_target" "$BIN_DIR/intelli"
+    echo "  Binary linked to $BIN_DIR/intelli." >&2
 fi
 
 # Generate shell completions (best-effort)
 mkdir -p "$HOME/.intellihelper/completions/bash" "$HOME/.intellihelper/completions/zsh"
-"$BIN_DIR/intellihelper" completions bash > "$HOME/.intellihelper/completions/bash/intellihelper.bash" 2>/dev/null || true
-"$BIN_DIR/intellihelper" completions zsh  > "$HOME/.intellihelper/completions/zsh/_grok"     2>/dev/null || true
+"$BIN_DIR/intelli" completions bash > "$HOME/.intellihelper/completions/bash/intelli.bash" 2>/dev/null || true
+"$BIN_DIR/intelli" completions zsh  > "$HOME/.intellihelper/completions/zsh/_intelli"     2>/dev/null || true
 # Fish: write to the auto-loaded completions dir so it works immediately
 if mkdir -p "$HOME/.config/fish/completions" 2>/dev/null; then
-    "$BIN_DIR/intellihelper" completions fish > "$HOME/.config/fish/completions/intellihelper.fish" 2>/dev/null || true
+    "$BIN_DIR/intelli" completions fish > "$HOME/.config/fish/completions/intelli.fish" 2>/dev/null || true
 fi
 
 # Persist installer source and channel to config
@@ -332,9 +331,9 @@ if [ -n "$INTELLIHELPER_DEPLOYMENT_KEY" ]; then
 fi
 
 if [ "$os" = "windows" ]; then
-    echo "IntelliHelper $version installed to $BIN_DIR/intellihelper.exe" >&2
+    echo "IntelliHelper $version installed to $BIN_DIR/intelli.exe" >&2
 else
-    echo "IntelliHelper $version installed to $BIN_DIR/intellihelper" >&2
+    echo "IntelliHelper $version installed to $BIN_DIR/intelli" >&2
 fi
 
 # --- Ensure intellihelper is on PATH ---
@@ -349,11 +348,9 @@ SYMLINK_CREATED=""
 if [ "$os" != "windows" ] && ! path_has_dir "$BIN_DIR"; then
     for candidate in "$HOME/.local/bin" "/usr/local/bin"; do
         if path_has_dir "$candidate" && [ -d "$candidate" ] && [ -w "$candidate" ]; then
-            ln -sf "$BIN_DIR/intellihelper" "$candidate/intellihelper"
-            ln -sf "$BIN_DIR/agent" "$candidate/agent"
+            ln -sf "$BIN_DIR/intelli" "$candidate/intelli"
             SYMLINK_CREATED="$candidate"
-            echo "  Symlinked $candidate/intellihelper -> $BIN_DIR/intellihelper" >&2
-            echo "  Symlinked $candidate/agent -> $BIN_DIR/agent" >&2
+            echo "  Symlinked $candidate/intelli -> $BIN_DIR/intelli" >&2
             break
         fi
     done
@@ -405,7 +402,7 @@ autoload -Uz compinit && compinit -C
     else
         new_block='# >>> intellihelper installer >>>
 export PATH="$HOME/.intellihelper/bin:$PATH"
-[[ -r "$HOME/.intellihelper/completions/bash/intellihelper.bash" ]] && source "$HOME/.intellihelper/completions/bash/intellihelper.bash"
+[[ -r "$HOME/.intellihelper/completions/bash/intelli.bash" ]] && source "$HOME/.intellihelper/completions/bash/intelli.bash"
 # <<< intellihelper installer <<<'
     fi
 
@@ -434,14 +431,14 @@ fi
 
 echo "" >&2
 if path_has_dir "$BIN_DIR" || [ -n "$SYMLINK_CREATED" ]; then
-    echo "Run 'intellihelper' or 'agent' to get started!" >&2
+    echo "Run 'intelli' to get started!" >&2
 elif [ -n "$config_file" ]; then
-    echo "Restart your terminal, then run 'intellihelper' or 'agent' to get started!" >&2
+    echo "Restart your terminal, then run 'intelli' to get started!" >&2
 else
-    echo "Add $BIN_DIR to your PATH, then run 'intellihelper' or 'agent' to get started:" >&2
+    echo "Add $BIN_DIR to your PATH, then run 'intelli' to get started:" >&2
     echo '  export PATH="$HOME/.intellihelper/bin:$PATH"' >&2
 fi
 
 if [ "$os" = "windows" ]; then
-    echo "To use intellihelper from cmd.exe or PowerShell, add %USERPROFILE%\\.intellihelper\\bin to your PATH." >&2
+    echo "To use intelli from cmd.exe or PowerShell, add %USERPROFILE%\\.intellihelper\\bin to your PATH." >&2
 fi

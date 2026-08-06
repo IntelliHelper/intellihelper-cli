@@ -62,9 +62,10 @@ pub use managed_cache::{
     mark_managed_config_synced, mark_managed_config_synced_at, normalize_identity,
 };
 pub use paths::{
-    claude_managed_settings_path, claude_managed_settings_probe_path, decode_cwd_from_dirname,
-    default_intellihelper_home, encode_cwd_dirname, ensure_sessions_cwd_dir, intellihelper_application,
-    intellihelper_application_in, intellihelper_home, sessions_cwd_dir, system_config_dir, user_intellihelper_home,
+    CLI_BIN_NAME, claude_managed_settings_path, claude_managed_settings_probe_path,
+    decode_cwd_from_dirname, default_intellihelper_home, encode_cwd_dirname, ensure_sessions_cwd_dir,
+    intellihelper_application, intellihelper_application_in, intellihelper_home, sessions_cwd_dir,
+    system_config_dir, user_intellihelper_home,
 };
 pub use validation::{
     RequirementsError, RequirementsLayer, RequirementsSource, load_merged_requirements,

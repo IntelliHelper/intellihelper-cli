@@ -11,16 +11,16 @@ use intellihelper_shell::util::intellihelper_home::intellihelper_home;
 
 const TTL_SECONDS_BEFORE_AUTO_UPDATE: Duration = Duration::from_secs(60 * 30);
 const NPM_PACKAGE: &str = "@intellihelper/cli";
-pub const GH_RELEASE_REPO: &str = "xai-org-shared/intellihelper-build";
+pub const GH_RELEASE_REPO: &str = "IntelliHelper/intellihelper-cli";
 
-/// Primary CLI base URL: Cloudflare-fronted x.ai endpoint with edge caching
-/// for binaries and origin-respecting no-cache for channel pointers.
-pub(crate) const CLI_BASE_URL_PRIMARY: &str = "https://x.ai/cli";
+/// Primary CLI base URL: https://cli.intellihelper.in (CDN / object store).
+/// Channel pointers (`stable`, `alpha`, …) and versioned binaries live here.
+pub(crate) const CLI_BASE_URL_PRIMARY: &str = "https://cli.intellihelper.in";
 
-/// Fallback CLI base URL: direct GCS, used when the primary is unreachable
-/// (Cloudflare outage, regional CF egress issue, DNS hijack, etc.).
+/// Fallback when the primary CDN is unreachable (e.g. DNS/CDN outage).
+/// Prefer a second host that mirrors the same path layout when available.
 pub(crate) const CLI_BASE_URL_FALLBACK: &str =
-    "https://storage.googleapis.com/intellihelper-build-public-artifacts/cli";
+    "https://github.com/IntelliHelper/intellihelper-cli/releases/latest/download";
 
 /// CLI base URLs in preference order. Callers (channel-pointer fetch, binary
 /// download, in-app updater) try each in turn and stop at the first success.
@@ -416,12 +416,13 @@ pub async fn is_version_cache_fresh() -> bool {
 
 pub use intellihelper_version::installed as get_installed_intellihelper_version;
 
-/// Version of the managed intellihelper binary currently on disk, read from the
-/// `~/.intellihelper/bin/intellihelper` symlink target (`../downloads/intellihelper-<version>-<platform>`)
+/// Version of the managed CLI binary currently on disk, read from the
+/// `~/.intellihelper/bin/intelli` symlink target
+/// (`../downloads/intellihelper-<version>-<platform>` or `intelli-<version>…`)
 /// without exec'ing anything.
 ///
 /// Concurrent updaters (TUI background download, leader hourly checker,
-/// explicit `intellihelper update`) decide staleness from this instead of their own
+/// explicit `intelli update`) decide staleness from this instead of their own
 /// compiled-in version, so a binary another process already installed is
 /// never downloaded a second time.
 ///
@@ -443,7 +444,10 @@ pub fn installed_on_disk_version() -> Option<String> {
         // metadata() follows the symlink: Err means the target is gone
         // (dangling link) and the version it names is not actually on disk.
         std::fs::metadata(&app).ok()?;
-        version_from_versioned_binary_name(target.file_name()?.to_str()?, "intellihelper")
+        let name = target.file_name()?.to_str()?;
+        // Prefer `intelli-…` (current), fall back to legacy `intellihelper-…` artifacts.
+        version_from_versioned_binary_name(name, "intelli")
+            .or_else(|| version_from_versioned_binary_name(name, "intellihelper"))
     }
     #[cfg(not(unix))]
     {

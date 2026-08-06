@@ -8,7 +8,7 @@ Use it interactively as a TUI, or integrate it into your own apps via headless m
 
 ```bash
 # Install
-curl -fsSL https://x.ai/cli/install.sh | bash
+curl -fsSL https://cli.intellihelper.in/install.sh | bash
 
 # Interactive TUI
 intellihelper
@@ -59,16 +59,16 @@ intellihelper agent stdio
 
 ```bash
 # Install latest stable
-curl -fsSL https://x.ai/cli/install.sh | bash
+curl -fsSL https://cli.intellihelper.in/install.sh | bash
 
 # Install a specific version
-curl -fsSL https://x.ai/cli/install.sh | bash -s 0.1.42
+curl -fsSL https://cli.intellihelper.in/install.sh | bash -s 0.1.42
 ```
 
 Verify installation:
 
 ```bash
-intellihelper --version
+intelli --version
 ```
 
 Update to the latest version:

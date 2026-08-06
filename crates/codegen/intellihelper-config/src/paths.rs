@@ -57,14 +57,21 @@ pub fn user_intellihelper_home() -> Option<PathBuf> {
     resolvable.then(intellihelper_home)
 }
 
-/// Canonical intellihelper application path: `$INTELLIHELPER_HOME/bin/intellihelper` (Unix) or `intellihelper.exe` (Windows).
+/// User-facing CLI command name (installed binary / PATH entry).
+pub const CLI_BIN_NAME: &str = "intelli";
+
+/// Canonical application path: `$INTELLIHELPER_HOME/bin/intelli` (Unix) or `intelli.exe` (Windows).
 pub fn intellihelper_application() -> PathBuf {
     intellihelper_application_in(&intellihelper_home())
 }
 
 /// [`intellihelper_application`] under an explicit home instead of `$INTELLIHELPER_HOME`.
 pub fn intellihelper_application_in(home: &std::path::Path) -> PathBuf {
-    let name = if cfg!(windows) { "intellihelper.exe" } else { "intellihelper" };
+    let name = if cfg!(windows) {
+        format!("{CLI_BIN_NAME}.exe")
+    } else {
+        CLI_BIN_NAME.to_string()
+    };
     home.join("bin").join(name)
 }
 
@@ -325,12 +332,12 @@ mod tests {
             "default home path segment must be .intellihelper, got {}",
             home.display()
         );
-        // Application binary path under home is the intellihelper CLI name.
+        // Application binary path under home is the public CLI command name.
         let app = intellihelper_application_in(&home);
         let name = app.file_name().and_then(|s| s.to_str()).unwrap_or("");
         assert!(
-            name == "intellihelper" || name == "intellihelper.exe",
-            "application binary name must be intellihelper, got {name}"
+            name == "intelli" || name == "intelli.exe",
+            "application binary name must be intelli, got {name}"
         );
         // Env var the production reader uses (string present in shipped source).
         let reader = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/paths.rs"));

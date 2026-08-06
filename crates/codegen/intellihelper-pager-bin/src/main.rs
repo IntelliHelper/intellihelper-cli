@@ -1789,7 +1789,7 @@ fn install_heap_profile_hooks() {
 }
 fn version_text(channel_label: &str) -> String {
     format!(
-        "intellihelper {}\n",
+        "intelli {}\n",
         intellihelper_version::display_version_with_commit(env!("VERSION_WITH_COMMIT"), channel_label,)
     )
 }
@@ -2585,20 +2585,20 @@ mod tests {
             let mut output = Vec::new();
             write_version(&mut output, label).unwrap();
             let output = String::from_utf8(output).unwrap();
-            assert!(output.starts_with("intellihelper "));
+            assert!(output.starts_with("intelli "));
             assert!(output.contains(env!("VERSION_WITH_COMMIT")));
             assert!(output.ends_with(expected_suffix), "{output:?}");
         }
     }
     #[test]
     fn version_flags_and_doctor_are_distinct_early_intents() {
-        let version = PagerArgs::try_parse_from(["intellihelper", "--version"]).unwrap();
+        let version = PagerArgs::try_parse_from(["intelli", "--version"]).unwrap();
         assert!(version.version);
         assert!(version.command.is_none());
-        let short = PagerArgs::try_parse_from(["intellihelper", "-v"]).unwrap();
+        let short = PagerArgs::try_parse_from(["intelli", "-v"]).unwrap();
         assert!(short.version);
         assert!(short.command.is_none());
-        let subcommand = PagerArgs::try_parse_from(["intellihelper", "version"]).unwrap();
+        let subcommand = PagerArgs::try_parse_from(["intelli", "version"]).unwrap();
         assert!(!subcommand.version);
         assert!(matches!(
             subcommand.command,
@@ -2759,19 +2759,19 @@ mod tests {
         std::fs::create_dir_all(home.join("bin")).unwrap();
         std::fs::create_dir_all(home.join("downloads")).unwrap();
         assert!(!is_managed_install(
-            Some(home.join("bin").join("intellihelper")),
+            Some(home.join("bin").join("intelli")),
             &home
         ));
         assert!(!is_managed_install(None, &home));
         assert!(!is_managed_install(
-            Some(home.join("bin").join("intellihelper")),
+            Some(home.join("bin").join("intelli")),
             std::path::Path::new("")
         ));
         let target = home.join("downloads").join("intellihelper-1.2.3");
         std::fs::write(&target, b"binary").unwrap();
-        std::os::unix::fs::symlink(&target, home.join("bin").join("intellihelper")).unwrap();
+        std::os::unix::fs::symlink(&target, home.join("bin").join("intelli")).unwrap();
         assert!(is_managed_install(
-            Some(home.join("bin").join("intellihelper")),
+            Some(home.join("bin").join("intelli")),
             &home
         ));
         assert!(is_managed_install(Some(target.clone()), &home));
@@ -2808,7 +2808,7 @@ mod tests {
     #[serial_test::serial(INTELLIHELPER_AGENT_DASHBOARD)]
     #[test]
     fn dashboard_subcommand_flags_startup_without_forcing_leader() {
-        let mut args = PagerArgs::try_parse_from(["intellihelper", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["intelli", "dashboard"]).unwrap();
         assert!(!args.leader, "fixture: no explicit --leader");
         flag_dashboard_at_startup_if_requested(&mut args).unwrap();
         assert!(!args.leader, "dashboard must NOT force leader mode");
@@ -2829,7 +2829,7 @@ mod tests {
     #[serial_test::serial(INTELLIHELPER_AGENT_DASHBOARD)]
     #[test]
     fn dashboard_subcommand_allows_no_leader() {
-        let mut args = PagerArgs::try_parse_from(["intellihelper", "--no-leader", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["intelli", "--no-leader", "dashboard"]).unwrap();
         flag_dashboard_at_startup_if_requested(&mut args)
             .expect("--no-leader + dashboard must be allowed");
         assert!(args.no_leader, "--no-leader must be preserved");
@@ -2851,7 +2851,7 @@ mod tests {
     #[test]
     fn dashboard_subcommand_errors_when_disabled() {
         unsafe { std::env::set_var("INTELLIHELPER_AGENT_DASHBOARD", "0") };
-        let mut args = PagerArgs::try_parse_from(["intellihelper", "dashboard"]).unwrap();
+        let mut args = PagerArgs::try_parse_from(["intelli", "dashboard"]).unwrap();
         let result = flag_dashboard_at_startup_if_requested(&mut args);
         unsafe { std::env::remove_var("INTELLIHELPER_AGENT_DASHBOARD") };
         let err = result.expect_err("disabled dashboard must error");

@@ -29,9 +29,9 @@ const MSG_RUN_UPDATE_MANUAL: &str = "Run `intellihelper update` to get the lates
 /// Manual-install one-liner for this platform's bootstrap installer.
 fn manual_install_cmd() -> &'static str {
     if cfg!(windows) {
-        "irm https://x.ai/cli/install.ps1 | iex"
+        "irm https://cli.intellihelper.in/install.ps1 | iex"
     } else {
-        "curl -fsSL https://x.ai/cli/install.sh | bash"
+        "curl -fsSL https://cli.intellihelper.in/install.sh | bash"
     }
 }
 
@@ -39,7 +39,7 @@ fn manual_install_cmd() -> &'static str {
 fn reinstall_hint(installer: &str) -> String {
     match installer {
         "npm" => "Please reinstall via npm:\n  npm i -g @intellihelper/cli".to_string(),
-        "gh-release" => "Please reinstall via GitHub Releases:\n  gh release download --repo xai-org-shared/intellihelper-build --pattern 'intellihelper-*' --output intellihelper && chmod +x intellihelper".to_string(),
+        "gh-release" => "Please reinstall via GitHub Releases:\n  gh release download --repo IntelliHelper/intellihelper-cli --pattern 'intelli-*' --output intelli && chmod +x intelli".to_string(),
         _ => format!("Please reinstall via:\n  {}", manual_install_cmd()),
     }
 }
@@ -1365,9 +1365,9 @@ async fn regenerate_completions(binary: &std::path::Path, intellihelper_home: &s
     let user_home = std::env::home_dir().unwrap_or_default();
 
     let completions: &[(&str, std::path::PathBuf)] = &[
-        ("bash", intellihelper_home.join("completions/bash/intellihelper.bash")),
-        ("zsh", intellihelper_home.join("completions/zsh/_grok")),
-        ("fish", user_home.join(".config/fish/completions/intellihelper.fish")),
+        ("bash", intellihelper_home.join("completions/bash/intelli.bash")),
+        ("zsh", intellihelper_home.join("completions/zsh/_intelli")),
+        ("fish", user_home.join(".config/fish/completions/intelli.fish")),
     ];
 
     for (shell, dest) in completions {
@@ -1443,11 +1443,10 @@ async fn swap_managed_bin_links(
     binary_path: &std::path::Path,
     bin_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
-    let intellihelper_name = if cfg!(windows) { "intellihelper.exe" } else { "intellihelper" };
-    let agent_name = if cfg!(windows) { "agent.exe" } else { "agent" };
-    let intellihelper_link = bin_dir.join(intellihelper_name);
-    let agent_link = bin_dir.join(agent_name);
-    let link_paths: [std::path::PathBuf; 2] = [intellihelper_link.clone(), agent_link];
+    // Public CLI command is `intelli` (not the longer product name).
+    let cli_name = if cfg!(windows) { "intelli.exe" } else { "intelli" };
+    let intellihelper_link = bin_dir.join(cli_name);
+    let link_paths: [std::path::PathBuf; 1] = [intellihelper_link.clone()];
 
     // Capture every link up-front so a 2nd-link capture failure can't
     // strand the 1st mid-swap.
@@ -1981,7 +1980,7 @@ async fn heal_managed_install(installer: &str) {
 
 #[cfg(unix)]
 async fn reconcile_agent_to_intellihelper(bin_dir: &std::path::Path) {
-    let intellihelper_link = bin_dir.join("intellihelper");
+    let intellihelper_link = bin_dir.join("intelli");
     let agent_link = bin_dir.join("agent");
 
     let Ok(intellihelper_target) = tokio::fs::read_link(&intellihelper_link).await else {
@@ -2006,7 +2005,7 @@ async fn reconcile_agent_to_intellihelper(bin_dir: &std::path::Path) {
 
 #[cfg(windows)]
 async fn reconcile_agent_exe_to_intellihelper(bin_dir: &std::path::Path) {
-    let intellihelper_exe = bin_dir.join("intellihelper.exe");
+    let intellihelper_exe = bin_dir.join("intelli.exe");
     let agent_exe = bin_dir.join("agent.exe");
 
     if tokio::fs::metadata(&intellihelper_exe).await.is_err() {
@@ -2100,7 +2099,7 @@ async fn gh_release_download(tag: &str, pattern: &str, dest: &std::path::Path) -
     Ok(())
 }
 
-/// Download and install intellihelper from GitHub Releases (xai-org-shared/intellihelper-build).
+/// Download and install intellihelper from GitHub Releases (IntelliHelper/intellihelper-cli).
 ///
 /// Uses `gh release download` to fetch the binary matching the current platform.
 /// This works anywhere the `gh` CLI is authenticated, without needing npm or
@@ -2157,7 +2156,7 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
     // ~/.intellihelper/downloads/ (legacy layout — skips the intellihelper-latest indirection).
     // Permission errors ignored.
     #[cfg(unix)]
-    for name in ["intellihelper", "agent"] {
+    for name in ["intelli"] {
         let system_link = std::path::PathBuf::from(format!("/usr/local/bin/{name}"));
         if let Ok(existing_target) = tokio::fs::read_link(&system_link).await {
             let target_str = existing_target.to_string_lossy();
@@ -2229,7 +2228,7 @@ fn create_temp_npmrc(npm_registry: Option<&str>) -> Result<Option<std::path::Pat
 fn warn_if_other_grok_processes_running() {
     let my_pid = std::process::id().to_string();
     let mut cmd = Command::new("pgrep");
-    cmd.args(["-f", "intellihelper"])
+    cmd.args(["-f", "intelli"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -3576,7 +3575,7 @@ mod tests {
             "should suggest gh release download: {hint}"
         );
         assert!(
-            hint.contains("xai-org-shared/intellihelper-build"),
+            hint.contains("IntelliHelper/intellihelper-cli"),
             "should name the repo: {hint}"
         );
     }

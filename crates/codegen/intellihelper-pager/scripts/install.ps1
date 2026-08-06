@@ -1,14 +1,14 @@
 #
-# IntelliHelper CLI installer for PowerShell — https://x.ai/cli/install.ps1
+# IntelliHelper CLI installer for PowerShell — https://cli.intellihelper.in/install.ps1
 #
 # Auth: INTELLIHELPER_DEPLOYMENT_KEY env var (takes precedence) or ~/.intellihelper/auth.json from `intellihelper login`.
 # Env: INTELLIHELPER_CHANNEL (stable|alpha|enterprise, default: stable), INTELLIHELPER_BIN_DIR, INTELLIHELPER_PROXY_URL
 #
 # Usage:
-#   irm https://x.ai/cli/install.ps1 | iex                                       # latest stable
-#   & ([scriptblock]::Create((irm https://x.ai/cli/install.ps1))) -Version 0.1.42 # specific version
-#   $env:INTELLIHELPER_VERSION="0.1.42"; irm https://x.ai/cli/install.ps1 | iex           # specific version (alt)
-#   $env:INTELLIHELPER_DEPLOYMENT_KEY="<key>"; irm https://x.ai/cli/install.ps1 | iex
+#   irm https://cli.intellihelper.in/install.ps1 | iex                                       # latest stable
+#   & ([scriptblock]::Create((irm https://cli.intellihelper.in/install.ps1))) -Version 0.1.42 # specific version
+#   $env:INTELLIHELPER_VERSION="0.1.42"; irm https://cli.intellihelper.in/install.ps1 | iex           # specific version (alt)
+#   $env:INTELLIHELPER_DEPLOYMENT_KEY="<key>"; irm https://cli.intellihelper.in/install.ps1 | iex
 #
 
 param(
@@ -31,7 +31,7 @@ if (-not $Version -and $env:INTELLIHELPER_VERSION) {
 
 # This script is Windows-only. PS 5.1 has no Platform property and only runs on Windows.
 if ($PSVersionTable.Platform -and $PSVersionTable.Platform -ne 'Win32NT') {
-    Write-Error "This installer is for Windows. On macOS/Linux, use: curl -fsSL https://x.ai/cli/install.sh | bash"
+    Write-Error "This installer is for Windows. On macOS/Linux, use: curl -fsSL https://cli.intellihelper.in/install.sh | bash"
     exit 1
 }
 
@@ -147,8 +147,8 @@ $platform = "windows-$arch"
 
 # --- Resolve version and channel ---
 
-$BaseUrlPrimary = 'https://x.ai/cli'
-$BaseUrlFallback = 'https://storage.googleapis.com/grok-build-public-artifacts/cli'
+$BaseUrlPrimary = 'https://cli.intellihelper.in'
+$BaseUrlFallback = 'https://github.com/IntelliHelper/intellihelper-cli/releases/latest/download'
 $DownloadDir = Join-Path $IntelliHelperDir 'downloads'
 $BinDir = if ($env:INTELLIHELPER_BIN_DIR) { $env:INTELLIHELPER_BIN_DIR } else { Join-Path $IntelliHelperDir 'bin' }
 
@@ -157,7 +157,7 @@ New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
 
 $Channel = if ($env:INTELLIHELPER_CHANNEL) { $env:INTELLIHELPER_CHANNEL } else { 'stable' }
 
-# Pick a working BaseUrl: try Cloudflare-fronted x.ai first, fall back to
+# Pick a working BaseUrl: try cli.intellihelper.in first, fall back to
 # direct GCS if it's unreachable. The probe doubles as the channel-pointer
 # fetch when no -Version was passed, so the happy path costs zero extra requests.
 if (-not $Version) { Write-Host "Fetching latest $Channel version..." -ForegroundColor DarkGray }
@@ -165,7 +165,7 @@ $probeResult = Download-String "$BaseUrlPrimary/$Channel"
 if ($probeResult) {
     $BaseUrl = $BaseUrlPrimary
 } else {
-    Write-Host "Note: $BaseUrlPrimary unreachable, falling back to direct GCS." -ForegroundColor Yellow
+    Write-Host "Note: $BaseUrlPrimary unreachable, falling back to GitHub Releases." -ForegroundColor Yellow
     $BaseUrl = $BaseUrlFallback
     $probeResult = Download-String "$BaseUrl/$Channel"
 }
@@ -209,7 +209,7 @@ if (-not $downloaded) {
 
 # --- Install binary (locked-file safe) ---
 
-foreach ($binName in @('intellihelper.exe', 'agent.exe')) {
+foreach ($binName in @('intelli.exe')) {
     $dest = Join-Path $BinDir $binName
     $old = "$dest.old"
 
@@ -229,15 +229,15 @@ foreach ($binName in @('intellihelper.exe', 'agent.exe')) {
     }
 }
 
-Write-Host "  Installed to $BinDir\intellihelper.exe and $BinDir\agent.exe." -ForegroundColor DarkGray
+Write-Host "  Installed to $BinDir\intelli.exe." -ForegroundColor DarkGray
 
 # --- Generate completions (best-effort) ---
 
 $completionsDir = Join-Path (Join-Path $IntelliHelperDir 'completions') 'powershell'
 try {
     New-Item -ItemType Directory -Path $completionsDir -Force | Out-Null
-    & (Join-Path $BinDir 'intellihelper.exe') completions powershell 2>$null |
-        Set-Content (Join-Path $completionsDir 'intellihelper.ps1') -ErrorAction SilentlyContinue
+    & (Join-Path $BinDir 'intelli.exe') completions powershell 2>$null |
+        Set-Content (Join-Path $completionsDir 'intelli.ps1') -ErrorAction SilentlyContinue
 } catch {}
 
 # --- Persist installer config ---
@@ -314,7 +314,7 @@ if ($env:INTELLIHELPER_DEPLOYMENT_KEY) {
     }
 }
 
-Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intellihelper.exe" -ForegroundColor Green
+Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intelli.exe" -ForegroundColor Green
 
 # --- Ensure intellihelper is on PATH ---
 
@@ -331,4 +331,4 @@ if ($pathEntries -notcontains $BinDir) {
 }
 
 Write-Host ''
-Write-Host "Run 'intellihelper' or 'agent' to get started!" -ForegroundColor Cyan
+Write-Host "Run 'intelli' to get started!" -ForegroundColor Cyan

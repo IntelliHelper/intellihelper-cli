@@ -19,7 +19,7 @@ const zlib = require('zlib');
 const pkgName = '@xai-official/intellihelper';
 const IS_WINDOWS = process.platform === 'win32';
 const EXE = IS_WINDOWS ? '.exe' : '';
-const BIN_NAME = `intellihelper${EXE}`;
+const BIN_NAME = `intelli${EXE}`;
 // $INTELLIHELPER_HOME/bin (else ~/.intellihelper/bin), matching the Rust intellihelper_home(), including
 // its canonicalized-home default (so a symlinked $HOME resolves the same way).
 function defaultIntelliHelperHome() {

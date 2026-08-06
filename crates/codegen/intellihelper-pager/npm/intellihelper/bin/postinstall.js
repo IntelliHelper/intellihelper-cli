@@ -186,7 +186,9 @@ if (!platformDir) {
     process.exit(0);
 }
 
-installBinary('intellihelper', platformDir, `intellihelper${EXE}`);
+// Public command is `intelli`; versioned files are `intelli-<version>`.
+installBinary('intelli', platformDir, `intellihelper${EXE}`);
+cleanupOldVersions('intelli');
 cleanupOldVersions('intellihelper');
 cleanupOldVersions('intellihelper-pager');
 
@@ -219,22 +221,22 @@ fs.writeFileSync(configPath, TOML.stringify(obj), 'utf8');
 
 // Shell completions: print setup hints (no silent shell config mutation).
 // Set INTELLIHELPER_INSTALL_COMPLETIONS=1 to auto-generate to ~/.intellihelper/completions.
-const INTELLIHELPER_PATH = path.join(CANONICAL_DIR, `intellihelper${EXE}`);
+const INTELLI_PATH = path.join(CANONICAL_DIR, `intelli${EXE}`);
 if (process.env.INTELLIHELPER_INSTALL_COMPLETIONS === '1' && !IS_WINDOWS) {
     try {
         const { spawnSync } = require('child_process');
         const completionsDir = path.join(INTELLIHELPER_HOME, 'completions');
-        const bashPath = path.join(completionsDir, 'bash', 'intellihelper.bash');
-        const zshPath = path.join(completionsDir, 'zsh', '_grok');
+        const bashPath = path.join(completionsDir, 'bash', 'intelli.bash');
+        const zshPath = path.join(completionsDir, 'zsh', '_intelli');
         fs.mkdirSync(path.dirname(bashPath), { recursive: true });
         fs.mkdirSync(path.dirname(zshPath), { recursive: true });
-        const bashRes = spawnSync(INTELLIHELPER_PATH, ['completions', 'bash'], { encoding: 'utf8' });
+        const bashRes = spawnSync(INTELLI_PATH, ['completions', 'bash'], { encoding: 'utf8' });
         if (bashRes.status === 0) fs.writeFileSync(bashPath, bashRes.stdout);
-        const zshRes = spawnSync(INTELLIHELPER_PATH, ['completions', 'zsh'], { encoding: 'utf8' });
+        const zshRes = spawnSync(INTELLI_PATH, ['completions', 'zsh'], { encoding: 'utf8' });
         if (zshRes.status === 0) fs.writeFileSync(zshPath, zshRes.stdout);
         console.log('Completions generated to ~/.intellihelper/completions (bash/zsh)');
     } catch {}
 } else if (!IS_WINDOWS) {
-    console.log('Tip: intellihelper completions bash > ~/.local/share/bash-completion/completions/intellihelper');
-    console.log('     intellihelper completions zsh  > ~/.zsh/completions/_grok');
+    console.log('Tip: intelli completions bash > ~/.local/share/bash-completion/completions/intelli');
+    console.log('     intelli completions zsh  > ~/.zsh/completions/_intelli');
 }

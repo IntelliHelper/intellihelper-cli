@@ -1,0 +1,294 @@
+# Build IntelliHelper CLI binaries on every push to main and publish to
+# Cloudflare R2 (served at https://cli.intellihelper.in).
+#
+# Required GitHub secrets (repo → Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_ACCOUNT_ID   — R2 account id
+#   R2_ACCESS_KEY_ID        — R2 API token access key
+#   R2_SECRET_ACCESS_KEY    — R2 API token secret
+#   R2_BUCKET_NAME          — optional; default: intellihelper-cli
+#
+# Create the R2 API token: Cloudflare → R2 → Manage R2 API Tokens →
+# Object Read & Write on the CLI bucket. Attach custom domain cli.intellihelper.in
+# to the bucket (see docs/cloudflare-cli-cdn.md).
+
+name: Publish CLI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Optional version (e.g. 0.1.1). Empty = Cargo.toml + short SHA."
+        required: false
+        type: string
+
+concurrency:
+  group: publish-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.version_override }}" ]]; then
+            VER="${{ inputs.version_override }}"
+          else
+            PKG_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/codegen/intellihelper-pager-bin/Cargo.toml | head -1)
+            SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
+            # Installer accepts X.Y.Z or X.Y.Z-suffix
+            VER="${PKG_VER}-ci.${SHORT}"
+          fi
+          if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._]+)?$ ]]; then
+            echo "Invalid version: $VER" >&2
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Publishing CLI version: $VER"
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            exe: intellihelper-pager
+          - os: ubuntu-24.04-arm
+            platform: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            exe: intellihelper-pager
+          - os: macos-14
+            platform: macos-aarch64
+            target: aarch64-apple-darwin
+            exe: intellihelper-pager
+          # Cross-compile Intel Mac from Apple Silicon runner (macos-13 is deprecated).
+          - os: macos-14
+            platform: macos-x86_64
+            target: x86_64-apple-darwin
+            exe: intellihelper-pager
+          - os: windows-latest
+            platform: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            exe: intellihelper-pager.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler pkg-config libssl-dev cmake build-essential
+
+      - name: Install macOS deps
+        if: runner.os == 'macOS'
+        run: brew install protobuf cmake
+
+      - name: Install Windows protoc
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install protoc -y
+          echo "PROTOC=$(cygpath -m "$(command -v protoc)")" >> "$GITHUB_ENV"
+
+      - name: Set PROTOC (Unix)
+        if: runner.os != 'Windows'
+        run: echo "PROTOC=$(command -v protoc)" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.94.0"
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: pager-${{ matrix.platform }}
+          cache-on-failure: true
+
+      - name: Build release binary
+        shell: bash
+        env:
+          INTELLIHELPER_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo build -p intellihelper-pager-bin --release --target "${{ matrix.target }}"
+
+      - name: Stage artifact
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
+          EXE: ${{ matrix.exe }}
+        run: |
+          set -euo pipefail
+          SRC="target/${TARGET}/release/${EXE}"
+          if [[ ! -f "$SRC" ]]; then
+            echo "Missing binary: $SRC" >&2
+            ls -la "target/${TARGET}/release/" || true
+            exit 1
+          fi
+          mkdir -p dist
+          if [[ "$PLATFORM" == windows-* ]]; then
+            DEST="dist/intellihelper-${VERSION}-${PLATFORM}.exe"
+          else
+            DEST="dist/intellihelper-${VERSION}-${PLATFORM}"
+            chmod +x "$SRC"
+          fi
+          cp "$SRC" "$DEST"
+          ls -lh dist/
+          # Smoke: unix binaries should print a version
+          if [[ "$PLATFORM" != windows-* ]]; then
+            "$DEST" --version || true
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to R2 + GitHub summary
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: cli-*
+          merge-multiple: true
+
+      - name: List staged files
+        run: find artifacts -type f -ls
+
+      - name: Configure AWS CLI for R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" || -z "${R2_ACCESS_KEY_ID:-}" || -z "${R2_SECRET_ACCESS_KEY:-}" ]]; then
+            echo "::error::Missing R2 secrets. Set CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY."
+            exit 1
+          fi
+          aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
+          aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
+          aws configure set default.region auto
+          echo "R2_ENDPOINT=https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
+
+      - name: Upload installers, channel pointer, and binaries
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          BUCKET="${R2_BUCKET_NAME:-intellihelper-cli}"
+          ENDPOINT="$R2_ENDPOINT"
+
+          put() {
+            local key="$1" file="$2" ctype="$3"
+            echo "→ s3://${BUCKET}/${key}"
+            aws s3 cp "$file" "s3://${BUCKET}/${key}" \
+              --endpoint-url "$ENDPOINT" \
+              --content-type "$ctype" \
+              --only-show-errors
+          }
+
+          # Install scripts (always refresh)
+          put "install.sh" \
+            "crates/codegen/intellihelper-pager/scripts/install.sh" \
+            "text/x-shellscript"
+          put "install.ps1" \
+            "crates/codegen/intellihelper-pager/scripts/install.ps1" \
+            "text/plain"
+          put "enterprise-install.sh" \
+            "crates/codegen/intellihelper-pager/scripts/install-enterprise.sh" \
+            "text/x-shellscript"
+          put "enterprise-install.ps1" \
+            "crates/codegen/intellihelper-pager/scripts/install-enterprise.ps1" \
+            "text/plain"
+
+          # Channel pointer: latest stable for install.sh / updater
+          printf '%s' "$VERSION" > /tmp/stable
+          put "stable" /tmp/stable "text/plain"
+
+          # Binaries
+          shopt -s nullglob
+          for f in artifacts/intellihelper-*; do
+            key="$(basename "$f")"
+            put "$key" "$f" "application/octet-stream"
+          done
+
+          echo "Published version ${VERSION} to bucket ${BUCKET}"
+
+      - name: Smoke-check public CDN
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          BASE="https://cli.intellihelper.in"
+          echo "Checking ${BASE}/stable …"
+          # Custom domain may lag first-time DNS; don't fail the whole job hard.
+          if GOT=$(curl -fsSL --retry 5 --retry-delay 3 "${BASE}/stable"); then
+            echo "stable → $GOT"
+            if [[ "$GOT" != "$VERSION" ]]; then
+              echo "::warning::stable content '$GOT' != expected '$VERSION' (CDN cache?)"
+            fi
+          else
+            echo "::warning::Could not fetch ${BASE}/stable yet. Check R2 custom domain is Active."
+          fi
+          if curl -fsSL --retry 3 -o /dev/null -w "%{http_code}\n" "${BASE}/install.sh" | grep -qE '200'; then
+            echo "install.sh OK"
+          else
+            echo "::warning::install.sh not reachable at ${BASE}/install.sh"
+          fi
+
+      - name: Summary
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          {
+            echo "## IntelliHelper CLI published"
+            echo ""
+            echo "**Version:** \`${VERSION}\`"
+            echo ""
+            echo "### Install"
+            echo '```bash'
+            echo "curl -fsSL https://cli.intellihelper.in/install.sh | bash"
+            echo "intelli --version"
+            echo '```'
+            echo ""
+            echo "### Assets"
+            echo "\`https://cli.intellihelper.in/stable\` → \`${VERSION}\`"
+            find artifacts -type f -printf -- '- `%f`\n' 2>/dev/null || ls artifacts
+          } >> "$GITHUB_STEP_SUMMARY"

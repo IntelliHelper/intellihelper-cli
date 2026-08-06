@@ -2,12 +2,12 @@
 
 Bring IntelliHelper into your terminal. Fast, flicker-free CLI built for plans, subagents, and parallel work.
 
-**[Homepage](https://x.ai/cli)** | **[Documentation](https://docs.x.ai/build/overview)**
+**[Homepage](https://cli.intellihelper.in)** | **[Documentation](https://docs.x.ai/build/overview)**
 
 ## Install
 
 ```bash
-curl -fsSL https://x.ai/cli/install.sh | bash
+curl -fsSL https://cli.intellihelper.in/install.sh | bash
 ```
 
 Or install with npm:
