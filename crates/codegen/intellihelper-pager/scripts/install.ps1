@@ -209,7 +209,7 @@ if (-not $downloaded) {
 
 # --- Install binary (locked-file safe) ---
 
-foreach ($binName in @('intelli.exe')) {
+foreach ($binName in @('intelli.exe', 'intellihelper.exe')) {
     $dest = Join-Path $BinDir $binName
     $old = "$dest.old"
 
@@ -229,7 +229,7 @@ foreach ($binName in @('intelli.exe')) {
     }
 }
 
-Write-Host "  Installed to $BinDir\intelli.exe." -ForegroundColor DarkGray
+Write-Host "  Installed to $BinDir\intelli.exe and $BinDir\intellihelper.exe." -ForegroundColor DarkGray
 
 # --- Generate completions (best-effort) ---
 
@@ -314,9 +314,9 @@ if ($env:INTELLIHELPER_DEPLOYMENT_KEY) {
     }
 }
 
-Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intelli.exe" -ForegroundColor Green
+Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intelli.exe (and intellihelper.exe)" -ForegroundColor Green
 
-# --- Ensure intellihelper is on PATH ---
+# --- Ensure intelli/intellihelper is on PATH ---
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $pathEntries = if ($userPath) { $userPath -split ';' | Where-Object { $_ -ne '' } } else { @() }
@@ -324,11 +324,11 @@ if ($pathEntries -notcontains $BinDir) {
     $newPath = (@($BinDir) + $pathEntries) -join ';'
     [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
     Write-Host "  Added $BinDir to your User PATH." -ForegroundColor DarkGray
-    # Update current session so intellihelper works immediately.
+    # Update current session so intelli/intellihelper work immediately.
     if ($env:Path -notlike "*$BinDir*") {
         $env:Path = "$BinDir;$env:Path"
     }
 }
 
 Write-Host ''
-Write-Host "Run 'intelli' to get started!" -ForegroundColor Cyan
+Write-Host "Run 'intelli' or 'intellihelper' to get started!" -ForegroundColor Cyan

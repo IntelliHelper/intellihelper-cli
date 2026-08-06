@@ -1,22 +1,15 @@
 <div align="center">
 
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://media.x.ai/v1/website/spacexai-symbol-white-transparent-0c31957f.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png">
-    <img alt="SpaceXAI logo" src="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png" width="96">
-  </picture>
-  <br>
-  IntelliHelper CLI (<code>intelli</code>)
-</h1>
+# IntelliHelper CLI (`intelli` / `intellihelper`)
 
-**IntelliHelper CLI** is SpaceXAI's terminal-based AI coding agent. It runs as a
+**IntelliHelper CLI** is a terminal-based AI coding agent. It runs as a
 full-screen TUI that understands your codebase, edits files, executes shell
 commands, searches the web, and manages long-running tasks — interactively,
 headlessly for scripting/CI, or embedded in editors via the Agent Client
 Protocol (ACP).
 
 [Installing the released binary](#installing-the-released-binary) ·
+[Updating](#updating) ·
 [Building from source](#building-from-source) ·
 [Documentation](#documentation) ·
 [Repository layout](#repository-layout) ·
@@ -24,15 +17,11 @@ Protocol (ACP).
 [Contributing](#contributing) ·
 [License](#license)
 
-![IntelliHelper CLI TUI](https://media.x.ai/v1/website/universe-tui-screenshot-6f7a0837.png)
-
 **Install & downloads: [cli.intellihelper.in](https://cli.intellihelper.in)**
 
-This repository contains the Rust source for the `intelli` CLI/TUI and its agent
-runtime. It is synced periodically from the SpaceXAI monorepo.
-
-A small `SOURCE_REV` file at the root records the full monorepo commit SHA
-for the version of the code present in this tree.
+This repository contains the Rust source for the IntelliHelper CLI/TUI and its
+agent runtime. Both command names are supported after install: **`intelli`**
+(primary) and **`intellihelper`** (alias).
 
 </div>
 
@@ -40,16 +29,41 @@ for the version of the code present in this tree.
 
 ## Installing the released binary
 
-Prebuilt binaries are published for macOS, Linux, and Windows:
+Prebuilt binaries are published for macOS, Linux, and Windows. The installer
+shows **download progress** in interactive terminals and installs both
+`intelli` and `intellihelper` on your `PATH`.
 
 ```sh
 curl -fsSL https://cli.intellihelper.in/install.sh | bash   # macOS / Linux / Git Bash
 irm https://cli.intellihelper.in/install.ps1 | iex          # Windows PowerShell
 intelli --version
+# same binary:
+intellihelper --version
 ```
 
 See GitHub [Releases](https://github.com/IntelliHelper/intellihelper-cli/releases)
 for fixes and features in each version.
+
+## Updating
+
+Managed installs (installer / npm / GitHub Releases) check for new versions
+automatically by default. You will see when an update is available in the TUI
+or terminal; the new binary can download in the background, or you can update
+explicitly:
+
+```sh
+intelli update              # or: intellihelper update
+intelli update --check      # report only
+```
+
+Download progress is shown during interactive install and update. Configure
+behavior in `~/.intellihelper/config.toml`:
+
+```toml
+[cli]
+auto_update = true          # default when unset
+# channel = "stable"        # or "alpha" / "enterprise"
+```
 
 ## Building from source
 
@@ -79,7 +93,8 @@ cargo check -p intellihelper-pager-bin            # fast validation
 ```
 
 The binary artifact is named `intellihelper-pager`; official installs ship it as
-`intelli`. Configure models via `~/.intellihelper/config.toml` (BYOK) — see the
+`intelli` and `intellihelper`. Configure models via `~/.intellihelper/config.toml`
+(BYOK) — see the
 [authentication guide](crates/codegen/intellihelper-pager/docs/user-guide/02-authentication.md).
 
 ## Documentation

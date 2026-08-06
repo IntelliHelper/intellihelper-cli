@@ -212,7 +212,7 @@ if (-not $downloaded) {
 
 # --- Install binary (locked-file safe) ---
 
-foreach ($binName in @('intelli.exe')) {
+foreach ($binName in @('intelli.exe', 'intellihelper.exe')) {
     $dest = Join-Path $BinDir $binName
     $old = "$dest.old"
 
@@ -232,7 +232,7 @@ foreach ($binName in @('intelli.exe')) {
     }
 }
 
-Write-Host "  Installed to $BinDir\intelli.exe." -ForegroundColor DarkGray
+Write-Host "  Installed to $BinDir\intelli.exe and $BinDir\intellihelper.exe." -ForegroundColor DarkGray
 
 # --- Generate completions (best-effort) ---
 
@@ -314,7 +314,7 @@ if ($env:INTELLIHELPER_DEPLOYMENT_KEY) {
     }
 }
 
-Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intelli.exe" -ForegroundColor Green
+Write-Host "IntelliHelper $resolvedVersion installed to $BinDir\intelli.exe (and intellihelper.exe)" -ForegroundColor Green
 
 # --- Ensure intellihelper is on PATH ---
 
@@ -331,4 +331,4 @@ if ($pathEntries -notcontains $BinDir) {
 }
 
 Write-Host ''
-Write-Host "Run 'intelli' to get started!" -ForegroundColor Cyan
+Write-Host "Run 'intelli' or 'intellihelper' to get started!" -ForegroundColor Cyan

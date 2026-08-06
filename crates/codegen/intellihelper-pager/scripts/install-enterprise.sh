@@ -36,6 +36,7 @@ else
     exit 1
 fi
 
+# Silent download (channel pointers, small metadata). Always quiet.
 download_file() {
     local url="$1" output="$2"
     if [ "$DOWNLOADER" = "curl" ]; then
@@ -53,25 +54,48 @@ download_file() {
     fi
 }
 
-# Parallel byte-range download. Falls back to single-connection download_file
-# whenever HEAD lacks Content-Length, the file is small (<16 MiB), curl is
-# unavailable, or any chunk fetch / concat fails.
+# Binary download with a visible progress bar when stderr is a TTY.
+download_file_with_progress() {
+    local url="$1" output="$2"
+    if [ "$DOWNLOADER" = "curl" ]; then
+        if [ -t 2 ]; then
+            curl -fL --progress-bar -o "$output" "$url"
+        else
+            curl -fsSL -o "$output" "$url"
+        fi
+    else
+        if [ -t 2 ]; then
+            wget --show-progress -q -O "$output" "$url"
+        else
+            wget -q -O "$output" "$url"
+        fi
+    fi
+}
+
+# Parallel byte-range download. Falls back to single-connection download with
+# progress whenever HEAD lacks Content-Length, the file is small (<16 MiB),
+# curl is unavailable, stderr is a TTY (prefer a real progress bar), or any
+# chunk fetch / concat fails.
 download_file_parallel() {
     local url="$1" output="$2"
+    if [ -t 2 ]; then
+        download_file_with_progress "$url" "$output"
+        return
+    fi
     if [ "$DOWNLOADER" != "curl" ]; then
-        download_file "$url" "$output"
+        download_file_with_progress "$url" "$output"
         return
     fi
     local size
     size=$(curl -fsSL --head "$url" 2>/dev/null | awk -F'[: \r\n]+' 'tolower($1)=="content-length"{print $2; exit}')
     if [ -z "$size" ] || ! [ "$size" -ge 16777216 ] 2>/dev/null; then
-        download_file "$url" "$output"
+        download_file_with_progress "$url" "$output"
         return
     fi
     local n=8
     local chunk_size=$(( (size + n - 1) / n ))
     local tmpdir
-    tmpdir=$(mktemp -d 2>/dev/null) || { download_file "$url" "$output"; return; }
+    tmpdir=$(mktemp -d 2>/dev/null) || { download_file_with_progress "$url" "$output"; return; }
     local pids=() i start end
     for i in $(seq 0 $((n - 1))); do
         start=$((i * chunk_size))
@@ -89,7 +113,7 @@ download_file_parallel() {
         return 0
     fi
     rm -rf "$tmpdir"
-    download_file "$url" "$output"
+    download_file_with_progress "$url" "$output"
 }
 
 # Return 0 if a HEAD request for the URL gets HTTP 404.
@@ -232,7 +256,7 @@ fi
 if [ "$os" = "windows" ]; then
     # Symlinks require Developer Mode on Windows; copy instead.
     # If the exe is locked by a running process, rename it aside then retry.
-    for bin_name in intelli.exe; do
+    for bin_name in intelli.exe intellihelper.exe; do
         rm -f "$BIN_DIR/$bin_name.old" 2>/dev/null || true  # stale backup from prior update
         if ! cp -f "$binary_path" "$BIN_DIR/$bin_name" 2>/dev/null; then
             mv -f "$BIN_DIR/$bin_name" "$BIN_DIR/$bin_name.old" 2>/dev/null || true
@@ -244,11 +268,12 @@ if [ "$os" = "windows" ]; then
             fi
         fi
     done
-    echo "  Binary installed to $BIN_DIR/intelli.exe." >&2
+    echo "  Binary installed to $BIN_DIR/intelli.exe and $BIN_DIR/intellihelper.exe." >&2
 else
     chmod +x "$binary_path"
     ln -sf "$binary_path" "$BIN_DIR/intelli"
-    echo "  Binary linked to $BIN_DIR/intelli." >&2
+    ln -sf "$binary_path" "$BIN_DIR/intellihelper"
+    echo "  Binary linked to $BIN_DIR/intelli and $BIN_DIR/intellihelper." >&2
 fi
 
 # Generate shell completions (best-effort)
@@ -325,15 +350,16 @@ path_has_dir() {
     case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
 }
 
-# Try to symlink into a directory already on PATH so intellihelper works immediately
-# without restarting the shell. Candidate dirs in preference order.
+# Try to symlink into a directory already on PATH so intelli/intellihelper work
+# immediately without restarting the shell. Candidate dirs in preference order.
 SYMLINK_CREATED=""
 if [ "$os" != "windows" ] && ! path_has_dir "$BIN_DIR"; then
     for candidate in "$HOME/.local/bin" "/usr/local/bin"; do
         if path_has_dir "$candidate" && [ -d "$candidate" ] && [ -w "$candidate" ]; then
             ln -sf "$BIN_DIR/intelli" "$candidate/intelli"
+            ln -sf "$BIN_DIR/intellihelper" "$candidate/intellihelper"
             SYMLINK_CREATED="$candidate"
-            echo "  Symlinked $candidate/intelli -> $BIN_DIR/intelli" >&2
+            echo "  Symlinked $candidate/{intelli,intellihelper} -> $BIN_DIR/" >&2
             break
         fi
     done
@@ -414,14 +440,14 @@ fi
 
 echo "" >&2
 if path_has_dir "$BIN_DIR" || [ -n "$SYMLINK_CREATED" ]; then
-    echo "Run 'intelli' to get started!" >&2
+    echo "Run 'intelli' or 'intellihelper' to get started!" >&2
 elif [ -n "$config_file" ]; then
-    echo "Restart your terminal, then run 'intelli' to get started!" >&2
+    echo "Restart your terminal, then run 'intelli' or 'intellihelper' to get started!" >&2
 else
-    echo "Add $BIN_DIR to your PATH, then run 'intelli' to get started:" >&2
+    echo "Add $BIN_DIR to your PATH, then run 'intelli' or 'intellihelper' to get started:" >&2
     echo '  export PATH="$HOME/.intellihelper/bin:$PATH"' >&2
 fi
 
 if [ "$os" = "windows" ]; then
-    echo "To use intelli from cmd.exe or PowerShell, add %USERPROFILE%\\.intellihelper\\bin to your PATH." >&2
+    echo "To use intelli/intellihelper from cmd.exe or PowerShell, add %USERPROFILE%\\.intellihelper\\bin to your PATH." >&2
 fi

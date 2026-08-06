@@ -912,10 +912,11 @@ async fn try_parallel_download(
         let pb = ProgressBar::new(size);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("  {bar:30.cyan/dim} {bytes}/{total_bytes} ({eta})")
+                .template("  {spinner:.cyan} {msg} [{bar:30.cyan/dim}] {bytes}/{total_bytes} ({eta})")
                 .unwrap()
                 .progress_chars("━╸─"),
         );
+        pb.set_message("Downloading");
         Some(pb)
     } else {
         None
@@ -944,16 +945,18 @@ async fn try_parallel_download(
     });
     let result = futures::future::try_join_all(tasks).await;
 
-    if let Some(pb) = &pb {
-        pb.finish_and_clear();
-    }
-
     match result {
         Ok(_) => {
+            if let Some(pb) = &pb {
+                pb.finish_with_message("Download complete");
+            }
             publish_downloaded_artifact(&tmp, dest).await?;
             Ok(())
         }
         Err(e) => {
+            if let Some(pb) = &pb {
+                pb.finish_and_clear();
+            }
             let _ = tokio::fs::remove_file(&tmp).await;
             Err(e)
         }
@@ -1037,18 +1040,20 @@ pub async fn download_with_progress(url: &str, dest: &std::path::Path) -> Result
         let pb = ProgressBar::new(size);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("  {bar:30.cyan/dim} {bytes}/{total_bytes} ({eta})")
+                .template("  {spinner:.cyan} {msg} [{bar:30.cyan/dim}] {bytes}/{total_bytes} ({eta})")
                 .unwrap()
                 .progress_chars("━╸─"),
         );
+        pb.set_message("Downloading");
         pb
     } else {
         let pb = ProgressBar::new_spinner();
         pb.set_style(
             ProgressStyle::default_spinner()
-                .template("  {spinner:.cyan} {bytes} downloaded")
+                .template("  {spinner:.cyan} {msg} {bytes} downloaded")
                 .unwrap(),
         );
+        pb.set_message("Downloading");
         pb.enable_steady_tick(Duration::from_millis(100));
         pb
     };
@@ -1066,7 +1071,7 @@ pub async fn download_with_progress(url: &str, dest: &std::path::Path) -> Result
     file.flush().await?;
     drop(file);
 
-    pb.finish_and_clear();
+    pb.finish_with_message("Download complete");
 
     publish_downloaded_artifact(&tmp, dest).await?;
     Ok(())
@@ -1421,13 +1426,13 @@ fn relative_symlink_target(target: &std::path::Path, link: &std::path::Path) -> 
     target.to_path_buf()
 }
 
-/// Swap `~/.intellihelper/bin/{intellihelper,agent}` to point at `binary_path`. Returns the
-/// `intellihelper` link path (for [`regenerate_completions`]).
+/// Swap `~/.intellihelper/bin/{intelli,intellihelper}` to point at `binary_path`.
+/// Returns the primary `intelli` link path (for [`regenerate_completions`]).
 ///
-/// `intellihelper` and `agent` are first-class entry points that the bootstrap
+/// Both command names are first-class entry points that the bootstrap
 /// installers (`install.sh`, `install.ps1`, `install-enterprise.sh`)
-/// maintain in lockstep, and so must the updater — otherwise `intellihelper update`
-/// leaves `agent` pinned at the previous version.
+/// maintain in lockstep, and so must the updater — otherwise `intelli update`
+/// would leave `intellihelper` pinned at the previous version (or missing).
 ///
 /// Unix: atomic symlink swap with relative target (survives Docker
 /// bind-mounts of `~/.intellihelper/`). Windows: [`windows_replace_exe`].
@@ -1443,10 +1448,17 @@ async fn swap_managed_bin_links(
     binary_path: &std::path::Path,
     bin_dir: &std::path::Path,
 ) -> Result<std::path::PathBuf> {
-    // Public CLI command is `intelli` (not the longer product name).
-    let cli_name = if cfg!(windows) { "intelli.exe" } else { "intelli" };
-    let intellihelper_link = bin_dir.join(cli_name);
-    let link_paths: [std::path::PathBuf; 1] = [intellihelper_link.clone()];
+    // Primary command is `intelli`; `intellihelper` is a supported alias.
+    let primary_name = if cfg!(windows) { "intelli.exe" } else { "intelli" };
+    let alias_name = if cfg!(windows) {
+        "intellihelper.exe"
+    } else {
+        "intellihelper"
+    };
+    let intelli_link = bin_dir.join(primary_name);
+    let intellihelper_link = bin_dir.join(alias_name);
+    let link_paths: [std::path::PathBuf; 2] =
+        [intelli_link.clone(), intellihelper_link.clone()];
 
     // Capture every link up-front so a 2nd-link capture failure can't
     // strand the 1st mid-swap.
@@ -1515,7 +1527,7 @@ async fn swap_managed_bin_links(
     for cap in &captured {
         cap.cleanup().await;
     }
-    Ok(intellihelper_link)
+    Ok(intelli_link)
 }
 
 /// Snapshot of a managed-bin link's prior state for rollback in
@@ -2156,7 +2168,7 @@ async fn install_gh_release(target: Option<&str>) -> Result<()> {
     // ~/.intellihelper/downloads/ (legacy layout — skips the intellihelper-latest indirection).
     // Permission errors ignored.
     #[cfg(unix)]
-    for name in ["intelli"] {
+    for name in ["intelli", "intellihelper"] {
         let system_link = std::path::PathBuf::from(format!("/usr/local/bin/{name}"));
         if let Ok(existing_target) = tokio::fs::read_link(&system_link).await {
             let target_str = existing_target.to_string_lossy();

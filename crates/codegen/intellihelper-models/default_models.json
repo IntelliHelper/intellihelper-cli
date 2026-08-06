@@ -8,7 +8,7 @@
       "id": "intellihelper-4.5",
       "model": "intellihelper-4.5",
       "name": "IntelliHelper 4.5",
-      "description": "SpaceXAI's new frontier model",
+      "description": "IntelliHelper's frontier model",
       "context_window": 500000,
       "api_backend": "responses",
       "supports_backend_search": false,

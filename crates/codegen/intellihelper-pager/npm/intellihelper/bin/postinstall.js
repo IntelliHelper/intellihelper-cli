@@ -186,8 +186,46 @@ if (!platformDir) {
     process.exit(0);
 }
 
-// Public command is `intelli`; versioned files are `intelli-<version>`.
-installBinary('intelli', platformDir, `intellihelper${EXE}`);
+// Public commands are `intelli` (primary) and `intellihelper` (alias).
+// Versioned files use the artifact prefix from installBinary's binName.
+if (!installBinary('intelli', platformDir, `intellihelper${EXE}`)) {
+    process.exit(0);
+}
+// Alias: point intellihelper at the same versioned binary as intelli (no second copy).
+{
+    const versionedName = `intelli-${version}${EXE}`;
+    const versionedPath = path.join(CANONICAL_DIR, versionedName);
+    const aliasName = `intellihelper${EXE}`;
+    const aliasPath = path.join(CANONICAL_DIR, aliasName);
+    try {
+        if (IS_WINDOWS) {
+            const oldPath = aliasPath + '.old';
+            try { fs.unlinkSync(oldPath); } catch {}
+            try {
+                try { fs.unlinkSync(aliasPath); } catch {}
+                fs.copyFileSync(versionedPath, aliasPath);
+            } catch (e) {
+                try {
+                    fs.renameSync(aliasPath, oldPath);
+                    fs.copyFileSync(versionedPath, aliasPath);
+                } catch (e2) {
+                    try { fs.renameSync(oldPath, aliasPath); } catch {}
+                    console.error(`@intellihelper/cli: failed to install ${aliasName}: ${e2.message}`);
+                }
+            }
+        } else {
+            const tmpLink = aliasPath + `.link.${process.pid}`;
+            try { fs.unlinkSync(tmpLink); } catch {}
+            fs.symlinkSync(versionedName, tmpLink);
+            fs.renameSync(tmpLink, aliasPath);
+        }
+        if (fs.existsSync(aliasPath)) {
+            console.log(`intellihelper ${version} installed to ${aliasPath} -> ${versionedName}`);
+        }
+    } catch (e) {
+        console.error(`@intellihelper/cli: failed to wire intellihelper alias: ${e.message}`);
+    }
+}
 cleanupOldVersions('intelli');
 cleanupOldVersions('intellihelper');
 cleanupOldVersions('intellihelper-pager');

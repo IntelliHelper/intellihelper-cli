@@ -96,33 +96,31 @@ async fn install_internal_pinned_version_writes_binary_and_symlink() {
     assert!(downloaded.exists(), "binary downloaded: {downloaded:?}");
     assert_eq!(std::fs::read(&downloaded).unwrap(), b"#!/bin/sh\nexit 0\n");
 
-    let symlink = home.join("bin").join("intellihelper");
-    assert!(symlink.is_symlink(), "intellihelper symlink created");
-    let target = std::fs::read_link(&symlink).unwrap();
-    assert_eq!(
-        target.file_name().unwrap(),
-        format!("intellihelper-0.1.181-{platform}").as_str()
-    );
-
-    // `intellihelper` and `agent` move together — see `swap_managed_bin_links`.
-    let agent_link = home.join("bin").join("agent");
-    assert!(agent_link.is_symlink(), "agent symlink created");
-    let agent_target = std::fs::read_link(&agent_link).unwrap();
-    assert_eq!(agent_target, target, "agent and intellihelper point at same target");
+    let expected_name = format!("intellihelper-0.1.181-{platform}");
+    for name in ["intelli", "intellihelper"] {
+        let symlink = home.join("bin").join(name);
+        assert!(symlink.is_symlink(), "{name} symlink created");
+        let target = std::fs::read_link(&symlink).unwrap();
+        assert_eq!(
+            target.file_name().unwrap(),
+            expected_name.as_str(),
+            "{name} must point at versioned download"
+        );
+    }
 }
 
-/// Regression: pre-existing `agent` symlink from a prior install must be
-/// swapped to the new version, not left stale (the original bug).
+/// Regression: pre-existing `intellihelper` symlink from a prior install must be
+/// swapped to the new version along with `intelli`, not left stale.
 #[tokio::test]
 #[serial]
-async fn install_internal_updates_stale_agent_symlink_to_new_version() {
+async fn install_internal_updates_stale_alias_symlink_to_new_version() {
     let _ = test_home();
     reset_home();
     let platform = host_platform();
     let server = mount_gcs("0.1.181", &platform).await;
     let cfg = make_config("stable");
 
-    // Prior install: both links point at an older versioned binary.
+    // Prior install: both command links point at an older versioned binary.
     let home = test_home();
     let bin_dir = home.join("bin");
     let download_dir = home.join("downloads");
@@ -133,27 +131,29 @@ async fn install_internal_updates_stale_agent_symlink_to_new_version() {
     let rel_old = std::path::Path::new("..")
         .join("downloads")
         .join(format!("intellihelper-0.1.180-{platform}"));
+    std::os::unix::fs::symlink(&rel_old, bin_dir.join("intelli")).unwrap();
     std::os::unix::fs::symlink(&rel_old, bin_dir.join("intellihelper")).unwrap();
-    std::os::unix::fs::symlink(&rel_old, bin_dir.join("agent")).unwrap();
 
     install_internal_from_base(Some("0.1.181"), &cfg, &server.uri())
         .await
         .unwrap();
 
-    let agent_link = bin_dir.join("agent");
-    let agent_target = std::fs::read_link(&agent_link).unwrap();
-    assert_eq!(
-        agent_target.file_name().unwrap(),
-        format!("intellihelper-0.1.181-{platform}").as_str(),
-        "agent symlink must swap to the new version, not stay on old"
-    );
+    let expected = format!("intellihelper-0.1.181-{platform}");
+    for name in ["intelli", "intellihelper"] {
+        let target = std::fs::read_link(bin_dir.join(name)).unwrap();
+        assert_eq!(
+            target.file_name().unwrap(),
+            expected.as_str(),
+            "{name} symlink must swap to the new version, not stay on old"
+        );
+    }
 }
 
-/// Rollback regression: if `agent` swap fails after `intellihelper` succeeded,
-/// `intellihelper` must roll back to its prior target (all-or-nothing).
+/// Rollback regression: if `intellihelper` swap fails after `intelli` succeeded,
+/// `intelli` must roll back to its prior target (all-or-nothing).
 #[tokio::test]
 #[serial]
-async fn install_internal_rolls_back_grok_when_agent_swap_fails() {
+async fn install_internal_rolls_back_intelli_when_alias_swap_fails() {
     let _ = test_home();
     reset_home();
     let platform = host_platform();
@@ -170,33 +170,33 @@ async fn install_internal_rolls_back_grok_when_agent_swap_fails() {
     let rel_old = std::path::Path::new("..")
         .join("downloads")
         .join(format!("intellihelper-0.1.180-{platform}"));
-    std::os::unix::fs::symlink(&rel_old, bin_dir.join("intellihelper")).unwrap();
+    std::os::unix::fs::symlink(&rel_old, bin_dir.join("intelli")).unwrap();
 
-    // Sabotage the agent swap: non-empty directory → rename fails with EISDIR.
-    let agent_dir = bin_dir.join("agent");
-    std::fs::create_dir(&agent_dir).unwrap();
-    std::fs::write(agent_dir.join("blocker"), b"x").unwrap();
+    // Sabotage the alias swap: non-empty directory → rename fails with EISDIR.
+    let alias_dir = bin_dir.join("intellihelper");
+    std::fs::create_dir(&alias_dir).unwrap();
+    std::fs::write(alias_dir.join("blocker"), b"x").unwrap();
 
     let err = install_internal_from_base(Some("0.1.181"), &cfg, &server.uri())
         .await
-        .expect_err("agent swap must fail when target is a non-empty dir");
+        .expect_err("intellihelper swap must fail when target is a non-empty dir");
     drop(err);
 
-    // intellihelper must be rolled back to the prior version.
-    let intellihelper_target = std::fs::read_link(bin_dir.join("intellihelper")).unwrap();
+    // intelli must be rolled back to the prior version.
+    let intelli_target = std::fs::read_link(bin_dir.join("intelli")).unwrap();
     assert_eq!(
-        intellihelper_target.file_name().unwrap(),
+        intelli_target.file_name().unwrap(),
         format!("intellihelper-0.1.180-{platform}").as_str(),
-        "intellihelper must be rolled back when agent swap fails"
+        "intelli must be rolled back when intellihelper swap fails"
     );
 }
 
-/// Absent-prior rollback regression: fresh install (no prior `intellihelper` /
-/// `agent`), sabotaged `agent` swap must *remove* the just-created `intellihelper`
-/// link so we don't leave it on the new binary while `agent` is absent.
+/// Absent-prior rollback regression: fresh install (no prior `intelli` /
+/// `intellihelper`), sabotaged `intellihelper` swap must *remove* the
+/// just-created `intelli` link so we don't leave a half-applied install.
 #[tokio::test]
 #[serial]
-async fn install_internal_rollback_removes_absent_prior_intellihelper_link() {
+async fn install_internal_rollback_removes_absent_prior_intelli_link() {
     let _ = test_home();
     reset_home();
     let platform = host_platform();
@@ -207,24 +207,24 @@ async fn install_internal_rollback_removes_absent_prior_intellihelper_link() {
     let bin_dir = home.join("bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
 
-    // No prior `intellihelper`. Sabotage `agent` swap: non-empty directory → EISDIR.
-    let agent_dir = bin_dir.join("agent");
-    std::fs::create_dir(&agent_dir).unwrap();
-    std::fs::write(agent_dir.join("blocker"), b"x").unwrap();
+    // No prior `intelli`. Sabotage `intellihelper` swap: non-empty directory → EISDIR.
+    let alias_dir = bin_dir.join("intellihelper");
+    std::fs::create_dir(&alias_dir).unwrap();
+    std::fs::write(alias_dir.join("blocker"), b"x").unwrap();
     assert!(
-        !bin_dir.join("intellihelper").exists() && !bin_dir.join("intellihelper").is_symlink(),
-        "precondition: intellihelper must not exist before install",
+        !bin_dir.join("intelli").exists() && !bin_dir.join("intelli").is_symlink(),
+        "precondition: intelli must not exist before install",
     );
 
     let err = install_internal_from_base(Some("0.1.181"), &cfg, &server.uri())
         .await
-        .expect_err("agent swap must fail when target is a non-empty dir");
+        .expect_err("intellihelper swap must fail when target is a non-empty dir");
     drop(err);
 
-    let intellihelper_path = bin_dir.join("intellihelper");
+    let intelli_path = bin_dir.join("intelli");
     assert!(
-        !intellihelper_path.is_symlink() && !intellihelper_path.exists(),
-        "intellihelper must be removed on rollback when there was no prior link",
+        !intelli_path.is_symlink() && !intelli_path.exists(),
+        "intelli must be removed on rollback when there was no prior link",
     );
 }
 
@@ -623,8 +623,8 @@ async fn install_internal_from_bases_propagates_last_error_when_all_fail() {
 }
 
 /// Regression: a local failure after a successful download (sabotaged
-/// `agent` swap) must fail the install immediately — the fallback base must
-/// never be contacted for a pointless re-download.
+/// `intellihelper` swap) must fail the install immediately — the fallback
+/// base must never be contacted for a pointless re-download.
 #[tokio::test]
 #[serial]
 async fn install_internal_from_bases_does_not_redownload_on_local_swap_failure() {
@@ -639,11 +639,11 @@ async fn install_internal_from_bases_does_not_redownload_on_local_swap_failure()
     let home = test_home();
     let bin_dir = home.join("bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
-    // Sabotage activation: agent as a non-empty dir fails the swap's
-    // rollback capture (read_link on a directory) before any rename.
-    let agent_dir = bin_dir.join("agent");
-    std::fs::create_dir(&agent_dir).unwrap();
-    std::fs::write(agent_dir.join("blocker"), b"x").unwrap();
+    // Sabotage activation: intellihelper as a non-empty dir fails the swap
+    // after intelli is linked (all-or-nothing rollback).
+    let alias_dir = bin_dir.join("intellihelper");
+    std::fs::create_dir(&alias_dir).unwrap();
+    std::fs::write(alias_dir.join("blocker"), b"x").unwrap();
 
     install_internal_from_bases(
         Some("0.1.181"),

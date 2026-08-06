@@ -4,7 +4,8 @@
     "description": "Bring IntelliHelper into your terminal",
     "license": "Apache-2.0",
     "bin": {
-        "intelli": "bin/intelli"
+        "intelli": "bin/intelli",
+        "intellihelper": "bin/intelli"
     },
     "files": [
         "bin/"
