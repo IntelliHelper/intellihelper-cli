@@ -6999,10 +6999,16 @@ reasoning_effort = "low"
     }
     #[test]
     fn user_override_adds_api_key_to_default_model() {
-        let dm = crate::models::default_model();
+        // No first-party catalog yet: override a synthetic BYOK entry instead.
+        let dm = if crate::models::default_model().is_empty() {
+            "test-byok-model"
+        } else {
+            crate::models::default_model()
+        };
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             api_key = "user-custom-api-key"
             "#,
         ))
@@ -7012,10 +7018,6 @@ reasoning_effort = "low"
         let model = resolved.get(dm).expect("model should exist");
         assert_eq!(model.api_key, Some("user-custom-api-key".to_string()));
         assert_eq!(model.info.model, dm);
-        assert_eq!(
-            model.info.base_url, "https://cli-chat-proxy.grok.com/v1",
-            "base_url should inherit from default, not be stale"
-        );
     }
     #[test]
     fn config_override_applies_show_model_fingerprint() {
@@ -7052,10 +7054,15 @@ reasoning_effort = "low"
     #[test]
     fn user_override_parses_compaction_at_tokens_from_toml() {
         use intellihelper_sampling_types::CompactionAtTokens;
-        let dm = crate::models::default_model();
+        let dm = if crate::models::default_model().is_empty() {
+            "test-byok-model"
+        } else {
+            crate::models::default_model()
+        };
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             compaction_at_tokens = true
             "#,
         ))
@@ -7072,6 +7079,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             compaction_at_tokens = 367000
             "#,
         ))
@@ -7089,10 +7097,15 @@ reasoning_effort = "low"
     #[test]
     fn user_override_parses_compactions_remaining_from_toml() {
         use intellihelper_sampling_types::CompactionsRemaining;
-        let dm = crate::models::default_model();
+        let dm = if crate::models::default_model().is_empty() {
+            "test-byok-model"
+        } else {
+            crate::models::default_model()
+        };
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             compactions_remaining = true
             "#,
         ))
@@ -7109,6 +7122,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             compactions_remaining = 1
             "#,
         ))
@@ -7125,6 +7139,7 @@ reasoning_effort = "low"
         let raw_config: toml::Value = toml::from_str(&format!(
             r#"
             [model."{dm}"]
+            model = "{dm}"
             send_compactions_remaining = true
             "#,
         ))
@@ -8283,10 +8298,20 @@ reasoning_effort = "low"
         let credentials = resolve_credentials(model, session_key);
         sampling_config_for_model(model, credentials, None, None, None, None)
     }
+    /// Catalog key used in override tests. When no first-party default is
+    /// baked in, use a synthetic BYOK id so tests still cover override paths.
+    fn test_model_key() -> String {
+        let dm = crate::models::default_model();
+        if dm.is_empty() {
+            "test-byok-model".to_string()
+        } else {
+            dm.to_string()
+        }
+    }
     #[test]
     #[serial]
     fn e2e_user_overrides_default_model_key_with_custom_endpoint() {
-        let dm = crate::models::default_model();
+        let dm = test_model_key();
         let (_, models) = resolve_models_from_toml(
             &format!(
                 r#"
@@ -8299,7 +8324,7 @@ reasoning_effort = "low"
             ),
             None,
         );
-        let model = models.get(dm).expect("model should exist");
+        let model = models.get(&dm).expect("model should exist");
         assert_eq!(model.info.base_url, "https://inference.example.com/v1");
         assert_eq!(
             model.env_key.as_ref().and_then(|k| k.primary()),
@@ -8321,7 +8346,7 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn e2e_config_toml_model_overrides_default() {
-        let dm = crate::models::default_model();
+        let dm = test_model_key();
         let (_, models) = resolve_models_from_toml(
             &format!(
                 r#"
@@ -8331,7 +8356,7 @@ reasoning_effort = "low"
             ),
             None,
         );
-        let model = models.get(dm).expect("model should exist");
+        let model = models.get(&dm).expect("model should exist");
         let sampling = resolve_sampling(model, Some("session-tok"));
         assert_eq!(sampling.base_url, "https://inference.example.com/v1");
         unsafe { std::env::set_var("XAI_API_KEY", "xai-key") };
@@ -8343,7 +8368,7 @@ reasoning_effort = "low"
     }
     #[test]
     fn e2e_user_overrides_default_model_with_api_key() {
-        let dm = crate::models::default_model();
+        let dm = test_model_key();
         let (_, models) = resolve_models_from_toml(
             &format!(
                 r#"
@@ -8356,7 +8381,7 @@ reasoning_effort = "low"
             ),
             None,
         );
-        let model = models.get(dm).expect("model should exist");
+        let model = models.get(&dm).expect("model should exist");
         assert_eq!(model.info.base_url, "https://my-proxy.example.com/v1");
         assert_eq!(model.api_key.as_deref(), Some("my-custom-api-key"));
         assert!(model.env_key.is_none());
@@ -8426,41 +8451,50 @@ reasoning_effort = "low"
         assert_eq!(model.info.base_url, "https://inference.example.com/v1");
     }
     #[test]
-    fn e2e_default_model_with_session_routes_to_proxy() {
+    fn e2e_empty_catalog_has_no_first_party_default_model() {
+        // First-party models are not shipped yet; catalog is empty until
+        // default_models.json is filled in.
         let (_, models) = resolve_models_from_toml("", None);
-        let model = models
-            .get(crate::models::default_model())
-            .expect("default model should exist");
-        let sampling = resolve_sampling(model, Some("session-token-123"));
-        assert_eq!(sampling.api_key.as_deref(), Some("session-token-123"));
-        assert_eq!(
-            sampling.base_url, "https://cli-chat-proxy.grok.com/v1",
-            "session auth should route to cli-chat-proxy, not api.x.ai"
+        assert!(
+            models.is_empty() || crate::models::default_model().is_empty(),
+            "without user [model.*] config there should be no baked-in IntelliHelper model"
         );
+        if crate::models::default_model().is_empty() {
+            assert!(
+                !models.contains_key("intellihelper-4.5"),
+                "placeholder intellihelper-4.5 must not appear in the catalog"
+            );
+        }
     }
     #[test]
     #[serial]
-    fn e2e_default_model_with_external_api_key_routes_to_api_xai() {
-        let (_, models) = resolve_models_from_toml("", None);
-        let model = models
-            .get(crate::models::default_model())
-            .expect("default model should exist");
+    fn e2e_byok_model_with_api_key_uses_custom_endpoint() {
+        let (_, models) = resolve_models_from_toml(
+            r#"
+            [model.my-model]
+            model = "gpt-test"
+            base_url = "https://api.example.com/v1"
+            api_key = "user-key"
+            "#,
+            None,
+        );
+        let model = models.get("my-model").expect("byok model should exist");
         unsafe { std::env::set_var("XAI_API_KEY", "xai-external-key") };
         let sampling = resolve_sampling(model, None);
-        assert_eq!(sampling.api_key.as_deref(), Some("xai-external-key"));
+        assert_eq!(sampling.api_key.as_deref(), Some("user-key"));
         assert_eq!(
-            sampling.base_url, "https://api.x.ai/v1",
-            "external API key should route to api.x.ai via api_base_url"
+            sampling.base_url, "https://api.example.com/v1",
+            "BYOK model should use its configured base_url"
         );
         unsafe { std::env::remove_var("XAI_API_KEY") };
     }
     #[test]
     fn e2e_user_config_overrides_prefetched_model() {
-        let dm = crate::models::default_model();
+        let dm = test_model_key();
         let mut prefetched = IndexMap::new();
         prefetched.insert(
-            dm.to_string(),
-            test_model_entry(dm, "https://cli-chat-proxy.grok.com/v1", None, None, None),
+            dm.clone(),
+            test_model_entry(&dm, "https://cli-chat-proxy.grok.com/v1", None, None, None),
         );
         let (_, models) = resolve_models_from_toml(
             &format!(
@@ -8474,7 +8508,7 @@ reasoning_effort = "low"
             ),
             Some(prefetched),
         );
-        let model = models.get(dm).unwrap();
+        let model = models.get(&dm).unwrap();
         assert_eq!(
             model.info.base_url, "https://my-proxy.example.com/v1",
             "user TOML should override prefetched model"

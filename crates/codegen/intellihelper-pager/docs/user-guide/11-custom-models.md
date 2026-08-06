@@ -4,13 +4,18 @@ IntelliHelper connects to custom model endpoints for alternative providers, self
 
 ---
 
-## Default Models
+## Models (no built-in catalog yet)
 
-By default, IntelliHelper uses models hosted by SpaceXAI, and new sessions start with `intellihelper-4.5`. Default models require no configuration. Authenticate with `intellihelper login` or an API key, then start a session.
+IntelliHelper does **not** ship a first-party hosted model list right now. Models
+come from what you configure (custom endpoints / BYOK) and, later, from a
+server-provided catalog. Until you add at least one `[model.*]` entry and set a
+default, the model picker will be empty and prompts need an explicit model.
 
-List all available models:
+List models currently available in your install:
 
 ```bash
+intelli models
+# or
 intellihelper models
 ```
 
@@ -21,7 +26,7 @@ intellihelper models
 ### CLI Flag
 
 ```bash
-intellihelper -p "Hello" -m intellihelper-build
+intelli -p "Hello" -m my-model
 ```
 
 ### Slash Command
@@ -29,26 +34,31 @@ intellihelper -p "Hello" -m intellihelper-build
 In the TUI, switch models during a session:
 
 ```
-/model intellihelper-build
+/model my-model
 ```
 
 Or use the alias:
 
 ```
-/m intellihelper-build
+/m my-model
 ```
 
 ### Model Picker (Ctrl+M)
 
-Press `Ctrl+M` from the scrollback pane to open the model picker. It lists all available models, both built-in and custom, and lets you switch with a single keystroke. With the prompt focused, `Ctrl+M` toggles multiline input instead -- use `/model` to switch without leaving the prompt.
+Press `Ctrl+M` from the scrollback pane to open the model picker. It lists
+configured custom models (and any remote catalog entries when available) and
+lets you switch with a single keystroke. With the prompt focused, `Ctrl+M`
+toggles multiline input instead — use `/model` to switch without leaving the
+prompt.
 
 ### Config Default
 
-Set a persistent default in `~/.intellihelper/config.toml`:
+Set a persistent default in `~/.intellihelper/config.toml` to a model id you
+defined under `[model.<name>]`:
 
 ```toml
 [models]
-default = "intellihelper-4.5"
+default = "my-model"
 ```
 
 ---
@@ -315,13 +325,13 @@ The `web_search` tool uses a separate model. Configure it with:
 
 ```toml
 [models]
-web_search = "intellihelper-4.5"
+web_search = "my-model"
 ```
 
 Or via environment variable:
 
 ```bash
-export INTELLIHELPER_WEB_SEARCH_MODEL="intellihelper-4.5"
+export INTELLIHELPER_WEB_SEARCH_MODEL="my-model"
 ```
 
 If you point web search at a custom model, you also need a `[model.*]` entry so IntelliHelper can reach it. Server-side ("backend") web search runs only when the model sets `supports_backend_search = true` (and the build enables backend search); it does not depend on `api_backend`:

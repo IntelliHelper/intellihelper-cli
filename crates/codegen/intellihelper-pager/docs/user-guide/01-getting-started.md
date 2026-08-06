@@ -1,6 +1,10 @@
 # Getting Started
 
-IntelliHelper CLI is a terminal-based AI coding assistant from SpaceXAI. It runs as a TUI (Terminal User Interface) that understands your codebase, executes shell commands, edits files, searches the web, and manages tasks.
+IntelliHelper CLI is a terminal-based AI coding assistant. It runs as a TUI
+(Terminal User Interface) that understands your codebase, executes shell
+commands, edits files, searches the web, and manages tasks. Configure at least
+one model under `[model.*]` in `~/.intellihelper/config.toml` (there is no
+built-in hosted model catalog yet).
 
 You can use it interactively as a full-screen TUI, run it headlessly for scripting and CI/CD, or integrate it into editors via the Agent Client Protocol (ACP).
 
