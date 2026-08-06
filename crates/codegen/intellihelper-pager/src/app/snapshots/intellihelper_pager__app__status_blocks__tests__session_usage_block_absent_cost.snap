@@ -1,0 +1,11 @@
+---
+source: crates/codegen/intellihelper-pager/src/app/status_blocks.rs
+assertion_line: 371
+expression: text
+---
+Session usage (since start or last resume)
+· Input:    100 (0 cached)
+· Output:   10 (0 reasoning)
+· Total:    110 · calls: 1
+· API time: 1.0s
+· Cost:     not available (not reported)

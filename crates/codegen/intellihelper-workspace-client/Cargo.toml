@@ -1,0 +1,28 @@
+[package]
+license = "Apache-2.0"
+name = "intellihelper-workspace-client"
+version = "0.1.0"
+edition.workspace = true
+description = "Lightweight typed client for hub-proxied workspace.* RPCs (shared by intellihelper-shell proxy mode and other consumers)"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+tracing = { workspace = true }
+computer-hub-sdk = { workspace = true }
+intellihelper-workspace-types = { workspace = true }
+tool-protocol = { workspace = true }
+tool-runtime = { workspace = true }
+
+[features]
+default = []
+default-bazel = []
+[dev-dependencies]
+schemars = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+tool-types = { workspace = true }
+
+[lints]
+workspace = true

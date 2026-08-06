@@ -1,0 +1,12 @@
+[package]
+license = "Apache-2.0"
+name = "intellihelper-version"
+version = "0.2.120"
+edition.workspace = true
+description = "Lockstepped intellihelper CLI version."
+
+[dependencies]
+semver = { workspace = true }
+
+[lints]
+workspace = true
