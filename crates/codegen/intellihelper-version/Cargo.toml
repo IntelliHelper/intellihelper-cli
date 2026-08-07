@@ -1,7 +1,7 @@
 [package]
 license = "Apache-2.0"
 name = "intellihelper-version"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 description = "Lockstepped intellihelper CLI version."
 
