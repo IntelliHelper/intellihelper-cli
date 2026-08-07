@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Build IntelliHelper CLI for as many platforms as this machine can, then
-# optionally upload installers + binaries + stable pointer to Cloudflare R2.
+# optionally upload installers + binaries + /stable pointer to Cloudflare R2.
+#
+# Policy (matches .github/workflows/publish-cli.yml — stable only for now):
+#   - VERSION must be clean X.Y.Z (no -ci / -alpha)
+#   - Always updates /stable
+#   - After upload, older intellihelper-* binaries are deleted
 #
 # Usage (from repo root):
 #   ./scripts/publish-cli-local.sh                 # build only → dist/cli/
 #   ./scripts/publish-cli-local.sh --upload        # build + upload to R2
-#   VERSION=0.1.1 ./scripts/publish-cli-local.sh --upload
+#   VERSION=0.1.2 ./scripts/publish-cli-local.sh --upload
 #   PLATFORMS=macos-aarch64,linux-x86_64 ./scripts/publish-cli-local.sh
 #
 # R2 (required for --upload):
@@ -22,7 +27,7 @@
 #   windows-x86_64 — Docker + cargo-xwin (best-effort; may fail on deps)
 #
 # Note: A full multi-platform release from one Mac is heavy (time + disk).
-# GitHub Actions remains the reliable path for all five every push to main.
+# GitHub Actions remains the reliable path for all five platforms.
 
 set -euo pipefail
 
@@ -56,14 +61,18 @@ for arg in "$@"; do
   esac
 done
 
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._]+)?$ ]]; then
-  echo "Invalid VERSION='$VERSION'" >&2
+# Stable-only: clean X.Y.Z required
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Invalid VERSION='$VERSION'. Stable publishes require clean X.Y.Z (no -ci / -alpha)." >&2
   exit 1
 fi
 
+CHANNEL=stable
+
 mkdir -p "$DIST"
-echo "==> Version: $VERSION"
-echo "==> Output:  $DIST"
+echo "==> Version:   $VERSION"
+echo "==> Channel:   $CHANNEL (only)"
+echo "==> Output:    $DIST"
 echo "==> Platforms: $PLATFORMS"
 
 need_cmd() {
@@ -206,9 +215,8 @@ upload_r2() {
     put "$(basename "$f")" "$f" "application/octet-stream"
   done
 
-  # Prune previous versioned binaries only (keep installers, channel pointers,
-  # and the version we just published).
-  echo "Pruning old CLI binaries (keeping ${VERSION})…"
+  # Remove every previous versioned binary; keep only this release.
+  echo "Pruning old CLI binaries (keeping only ${VERSION})…"
   mapfile -t keys < <(
     aws s3api list-objects-v2 \
       --bucket "$BUCKET" \
@@ -232,7 +240,7 @@ upload_r2() {
   done
 
   echo ""
-  echo "Published ${VERSION} to R2 bucket ${BUCKET}"
+  echo "Published ${VERSION} → /stable (bucket ${BUCKET}); older binaries removed"
   echo "  https://cli.intellihelper.in/stable"
   echo "  curl -fsSL https://cli.intellihelper.in/install.sh | bash"
 }

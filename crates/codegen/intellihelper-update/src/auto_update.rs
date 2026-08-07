@@ -2483,7 +2483,31 @@ pub async fn run_update(
                 } else {
                     let stable_ptr = try_fetch_stable_pointer().await;
                     write_version_cache(&install_target, stable_ptr.as_deref()).await;
-                    eprintln!("Already up to date ({}).", effective_current);
+                    // Stable/enterprise reject pre-release channel pointers
+                    // (e.g. mis-published 0.1.2-ci.sha on /stable). Surface that
+                    // clearly instead of a silent "Already up to date".
+                    let target_is_pre = semver::Version::parse(&install_target)
+                        .map(|v| !v.pre.is_empty())
+                        .unwrap_or(false);
+                    let channel_blocks_pre = matches!(
+                        update_config.channel.as_str(),
+                        "stable" | "enterprise"
+                    );
+                    if target_is_pre
+                        && channel_blocks_pre
+                        && install_target != effective_current
+                    {
+                        eprintln!(
+                            "Channel pointer reports {install_target}, but the {} channel \
+                             does not install pre-releases. Keeping {}.\n\
+                             Fix: publish a clean X.Y.Z to /stable, or install explicitly:\n\
+                               intelli update --version {install_target}\n\
+                             Or switch channel: intelli update --alpha",
+                            update_config.channel, effective_current
+                        );
+                    } else {
+                        eprintln!("Already up to date ({}).", effective_current);
+                    }
                     // Retry if a prior sync failed.
                     refresh_deployment_config().await;
                     // The target is on disk even though this call installed

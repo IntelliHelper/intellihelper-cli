@@ -24,11 +24,22 @@ intelli --version
 
 Plain-text files with a single version string, no trailing junk preferred:
 
-| Path | Example body |
-|------|----------------|
-| `/stable` | `0.1.0` |
-| `/alpha` | `0.1.1-alpha.1` |
-| `/enterprise` | `0.1.0` |
+| Path | Example body | Current policy |
+|------|----------------|----------------|
+| `/stable` | `0.1.2` | **Every pipeline run** writes this (clean `X.Y.Z` only) |
+| `/alpha` | — | Not used for now |
+| `/enterprise` | `0.1.0` | Enterprise installs only |
+
+### Stable-only publish (current)
+
+**Publish CLI** and `scripts/publish-cli-local.sh`:
+
+1. Version = `version_override` or Cargo.toml — must be clean **`X.Y.Z`** (no `-ci` / `-alpha`).
+2. Build **all platforms** under that version.
+3. Write **`/stable`** only.
+4. **Delete** older `intellihelper-*` binaries; keep only the version just published.
+
+Stable clients reject pre-releases. Never put `0.1.2-ci.…` on `/stable`.
 
 Cache: short TTL or `no-cache` so users get new versions quickly.
 
@@ -72,11 +83,9 @@ cargo build -p intellihelper-pager-bin --release
 
 ## Publish checklist per release
 
-1. Build multi-arch binaries.
-2. Upload `intellihelper-{ver}-{platform}` assets.
-3. Upload updated `install.sh` / `install.ps1` if scripts changed.
-4. Write `/stable` (and `/alpha` if needed) to the new version string.
-5. **Delete** older `intellihelper-*` binaries for previous versions (CI and
-   `scripts/publish-cli-local.sh --upload` do this automatically after upload).
-   Install scripts and channel pointers are never deleted by that prune step.
-6. Smoke test: `curl -fsSL https://cli.intellihelper.in/install.sh | bash` then `intelli --version`.
+1. Bump to a **higher** clean version (`Cargo.toml` or `version_override=0.1.3`) so
+   clients already on the previous version will update.
+2. Run **Publish CLI** (or local `--upload`) — builds all platforms → `/stable`.
+3. Confirm older binaries were pruned (only `intellihelper-{new}-*` remain).
+4. Smoke: `curl -fsSL https://cli.intellihelper.in/stable` → clean `X.Y.Z`, then
+   `curl -fsSL https://cli.intellihelper.in/install.sh | bash` → `intelli --version`.

@@ -215,16 +215,27 @@ Workflow: [`.github/workflows/publish-cli.yml`](../.github/workflows/publish-cli
 2. Custom domain **`cli.intellihelper.in`** connected to that bucket and **Active**
 3. Secrets above saved on the **IntelliHelper/intellihelper-cli** GitHub repo
 
-### Versioning
+### Versioning and channels (stable only for now)
 
-- Default: `{Cargo.toml version}-ci.{shortsha}` e.g. `0.1.2-ci.a1b2c3d`
-- Optional **version_override** input (e.g. `0.1.2`) for a clean release tag
+| How you run Publish CLI | Version string | CDN |
+|-------------------------|----------------|-----|
+| Default (no override) | Cargo.toml `X.Y.Z` | **`/stable`** + all platforms |
+| `version_override=0.1.3` | that clean version | same |
+| Pre-release (`0.1.2-ci…`) | **rejected** | job fails |
+
+Every run:
+
+1. Builds all platforms under that version  
+2. Writes **`/stable`**  
+3. **Deletes** older `intellihelper-*` binaries  
+
+Bump the version each release so users on the previous `X.Y.Z` pick up the update.
 
 ### After secrets are set
 
 ```bash
 # GitHub → Actions → Publish CLI → Run workflow
-# Optionally set version_override to 0.1.2
+# Optional: version_override = 0.1.2  (else uses Cargo.toml)
 ```
 
 Then:
@@ -232,16 +243,17 @@ Then:
 ```bash
 curl -fsSL https://cli.intellihelper.in/install.sh | bash
 intelli --version
+intelli update
 ```
 
 ## 10. Manual per-release checklist (without CI)
 
-1. Build multi-arch binaries (CI or local).
+1. Build multi-arch binaries with a **clean** `VERSION=X.Y.Z` (higher than previous).
 2. Upload each `intellihelper-{ver}-{platform}`.
-3. Update `stable` (and `alpha` if needed) to the new version string.
+3. Set **`/stable`** to that version.
 4. Re-upload install scripts only if they changed.
-5. Delete older `intellihelper-*` binaries (or use `publish-cli-local.sh --upload`, which prunes automatically).
-6. Smoke: `curl -fsSL https://cli.intellihelper.in/install.sh | bash`
+5. Delete older `intellihelper-*` binaries (`publish-cli-local.sh --upload` does this).
+6. Smoke: `curl -fsSL https://cli.intellihelper.in/stable` → clean `X.Y.Z`, then install.
 
 ---
 

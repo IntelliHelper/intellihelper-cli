@@ -3,6 +3,16 @@
 #
 # Run: GitHub → Actions → Publish CLI → Run workflow
 #
+# Policy (for now — stable only):
+#   - Every successful run updates /stable only
+#   - Version is always a clean X.Y.Z (no -ci / -alpha pre-releases)
+#     • version_override if set, else Cargo.toml version of intellihelper-pager-bin
+#   - All five platforms build and upload under that version
+#   - After upload, older intellihelper-* binaries are deleted (only this version kept)
+#
+# Bump crates/codegen/intellihelper-pager-bin/Cargo.toml (or pass version_override)
+# before each release so clients see a higher semver and install the update.
+#
 # Required GitHub secrets (repo → Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_ACCOUNT_ID   — R2 account id
 #   R2_ACCESS_KEY_ID        — R2 API token access key
@@ -19,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Optional version (e.g. 0.1.2). Empty = Cargo.toml + short SHA."
+        description: "Clean stable version (e.g. 0.1.2). Empty = Cargo.toml version."
         required: false
         type: string
 
@@ -40,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      channel: ${{ steps.resolve.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,17 +61,20 @@ jobs:
           if [[ -n "${{ inputs.version_override }}" ]]; then
             VER="${{ inputs.version_override }}"
           else
-            PKG_VER=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/codegen/intellihelper-pager-bin/Cargo.toml | head -1)
-            SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
-            # Installer accepts X.Y.Z or X.Y.Z-suffix
-            VER="${PKG_VER}-ci.${SHORT}"
+            VER=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/codegen/intellihelper-pager-bin/Cargo.toml | head -1)
           fi
-          if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._]+)?$ ]]; then
-            echo "Invalid version: $VER" >&2
+
+          # Stable-only: clean X.Y.Z required (clients reject pre-releases on stable).
+          if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid stable version '$VER'. Use a clean X.Y.Z only \
+          (no -ci / -alpha). Bump Cargo.toml or set version_override."
             exit 1
           fi
+
+          CHANNEL=stable
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "Publishing CLI version: $VER"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Publishing CLI version: $VER → channel: $CHANNEL (all platforms)"
 
   build:
     name: Build (${{ matrix.platform }})
@@ -206,7 +220,7 @@ jobs:
           aws configure set default.region auto
           echo "R2_ENDPOINT=https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
 
-      - name: Upload installers, channel pointer, and binaries
+      - name: Upload installers, stable pointer, and binaries
         env:
           VERSION: ${{ needs.version.outputs.version }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
@@ -214,6 +228,12 @@ jobs:
           set -euo pipefail
           BUCKET="${R2_BUCKET_NAME:-intellihelper-cli}"
           ENDPOINT="$R2_ENDPOINT"
+          CHANNEL=stable
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Refusing non-clean version '$VERSION' on stable."
+            exit 1
+          fi
 
           put() {
             local key="$1" file="$2" ctype="$3"
@@ -238,20 +258,19 @@ jobs:
             "crates/codegen/intellihelper-pager/scripts/install-enterprise.ps1" \
             "text/plain"
 
-          # Channel pointer: latest stable for install.sh / updater
+          # Always stable only (for now)
           printf '%s' "$VERSION" > /tmp/stable
           put "stable" /tmp/stable "text/plain"
 
-          # Binaries for this release
+          # Binaries for this release (all platforms from matrix)
           shopt -s nullglob
           for f in artifacts/intellihelper-*; do
             key="$(basename "$f")"
             put "$key" "$f" "application/octet-stream"
           done
 
-          # Prune previous versioned binaries only (keep installers, channel
-          # pointers like stable/alpha, changelogs, and the version we just published).
-          echo "Pruning old CLI binaries (keeping ${VERSION})…"
+          # Remove every previous versioned binary; keep only this release.
+          echo "Pruning old CLI binaries (keeping only ${VERSION})…"
           mapfile -t keys < <(
             aws s3api list-objects-v2 \
               --bucket "$BUCKET" \
@@ -274,7 +293,7 @@ jobs:
             esac
           done
 
-          echo "Published version ${VERSION} to bucket ${BUCKET}"
+          echo "Published version ${VERSION} → /stable (bucket ${BUCKET}); older binaries removed"
 
       - name: Smoke-check public CDN
         env:
@@ -283,11 +302,14 @@ jobs:
           set -euo pipefail
           BASE="https://cli.intellihelper.in"
           echo "Checking ${BASE}/stable …"
-          # Custom domain may lag first-time DNS; don't fail the whole job hard.
           if GOT=$(curl -fsSL --retry 5 --retry-delay 3 "${BASE}/stable"); then
             echo "stable → $GOT"
             if [[ "$GOT" != "$VERSION" ]]; then
               echo "::warning::stable content '$GOT' != expected '$VERSION' (CDN cache?)"
+            fi
+            if [[ "$GOT" == *-* ]]; then
+              echo "::error::/stable must be a clean X.Y.Z, got '$GOT'"
+              exit 1
             fi
           else
             echo "::warning::Could not fetch ${BASE}/stable yet. Check R2 custom domain is Active."
@@ -303,14 +325,18 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           {
-            echo "## IntelliHelper CLI published"
+            echo "## IntelliHelper CLI published (stable)"
             echo ""
             echo "**Version:** \`${VERSION}\`"
+            echo "**Channel:** \`stable\` (only)"
+            echo "**Platforms:** linux-x86_64, linux-aarch64, macos-aarch64, macos-x86_64, windows-x86_64"
+            echo "**Prune:** older \`intellihelper-*\` binaries deleted; only this version kept"
             echo ""
             echo "### Install"
             echo '```bash'
             echo "curl -fsSL https://cli.intellihelper.in/install.sh | bash"
             echo "intelli --version"
+            echo "intelli update"
             echo '```'
             echo ""
             echo "### Assets"
