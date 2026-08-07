@@ -1,5 +1,7 @@
-# Build IntelliHelper CLI binaries on every push to main and publish to
-# Cloudflare R2 (served at https://cli.intellihelper.in).
+# Manually build IntelliHelper CLI binaries and publish to Cloudflare R2
+# (served at https://cli.intellihelper.in).
+#
+# Run: GitHub → Actions → Publish CLI → Run workflow
 #
 # Required GitHub secrets (repo → Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_ACCOUNT_ID   — R2 account id
@@ -14,12 +16,10 @@
 name: Publish CLI
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Optional version (e.g. 0.1.1). Empty = Cargo.toml + short SHA."
+        description: "Optional version (e.g. 0.1.2). Empty = Cargo.toml + short SHA."
         required: false
         type: string
 
@@ -242,11 +242,36 @@ jobs:
           printf '%s' "$VERSION" > /tmp/stable
           put "stable" /tmp/stable "text/plain"
 
-          # Binaries
+          # Binaries for this release
           shopt -s nullglob
           for f in artifacts/intellihelper-*; do
             key="$(basename "$f")"
             put "$key" "$f" "application/octet-stream"
+          done
+
+          # Prune previous versioned binaries only (keep installers, channel
+          # pointers like stable/alpha, changelogs, and the version we just published).
+          echo "Pruning old CLI binaries (keeping ${VERSION})…"
+          mapfile -t keys < <(
+            aws s3api list-objects-v2 \
+              --bucket "$BUCKET" \
+              --endpoint-url "$ENDPOINT" \
+              --prefix "intellihelper-" \
+              --query 'Contents[].Key' \
+              --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d'
+          )
+          for key in "${keys[@]+"${keys[@]}"}"; do
+            case "$key" in
+              "intellihelper-${VERSION}-"*)
+                echo "  keep  s3://${BUCKET}/${key}"
+                ;;
+              intellihelper-*)
+                echo "  delete s3://${BUCKET}/${key}"
+                aws s3 rm "s3://${BUCKET}/${key}" \
+                  --endpoint-url "$ENDPOINT" \
+                  --only-show-errors
+                ;;
+            esac
           done
 
           echo "Published version ${VERSION} to bucket ${BUCKET}"

@@ -76,4 +76,7 @@ cargo build -p intellihelper-pager-bin --release
 2. Upload `intellihelper-{ver}-{platform}` assets.
 3. Upload updated `install.sh` / `install.ps1` if scripts changed.
 4. Write `/stable` (and `/alpha` if needed) to the new version string.
-5. Smoke test: `curl -fsSL https://cli.intellihelper.in/install.sh | bash` then `intelli --version`.
+5. **Delete** older `intellihelper-*` binaries for previous versions (CI and
+   `scripts/publish-cli-local.sh --upload` do this automatically after upload).
+   Install scripts and channel pointers are never deleted by that prune step.
+6. Smoke test: `curl -fsSL https://cli.intellihelper.in/install.sh | bash` then `intelli --version`.

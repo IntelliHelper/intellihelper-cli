@@ -206,6 +206,31 @@ upload_r2() {
     put "$(basename "$f")" "$f" "application/octet-stream"
   done
 
+  # Prune previous versioned binaries only (keep installers, channel pointers,
+  # and the version we just published).
+  echo "Pruning old CLI binaries (keeping ${VERSION})…"
+  mapfile -t keys < <(
+    aws s3api list-objects-v2 \
+      --bucket "$BUCKET" \
+      --endpoint-url "$endpoint" \
+      --prefix "intellihelper-" \
+      --query 'Contents[].Key' \
+      --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d'
+  )
+  for key in "${keys[@]+"${keys[@]}"}"; do
+    case "$key" in
+      "intellihelper-${VERSION}-"*)
+        echo "  keep  s3://${BUCKET}/${key}"
+        ;;
+      intellihelper-*)
+        echo "  delete s3://${BUCKET}/${key}"
+        aws s3 rm "s3://${BUCKET}/${key}" \
+          --endpoint-url "$endpoint" \
+          --only-show-errors
+        ;;
+    esac
+  done
+
   echo ""
   echo "Published ${VERSION} to R2 bucket ${BUCKET}"
   echo "  https://cli.intellihelper.in/stable"

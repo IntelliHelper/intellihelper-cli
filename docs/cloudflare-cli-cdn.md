@@ -188,15 +188,17 @@ In Cloudflare for the zone:
 
 ---
 
-## 9. GitHub Actions auto-publish (main branch)
+## 9. GitHub Actions manual publish
 
 Workflow: [`.github/workflows/publish-cli.yml`](../.github/workflows/publish-cli.yml)
 
-On every push to **`main`** (and manual **Run workflow**):
+**Manual only** (Actions → **Publish CLI** → **Run workflow**). Does not run on push.
 
 1. Builds `intellihelper-pager` for linux/mac/windows
 2. Uploads install scripts + binaries + `stable` pointer to R2
-3. Public URL remains `https://cli.intellihelper.in/...`
+3. **Deletes previous** `intellihelper-*` binaries (only the newly published
+   version’s platform assets are kept; installers and `stable` stay)
+4. Public URL remains `https://cli.intellihelper.in/...`
 
 ### Secrets to add (repo → Settings → Secrets and variables → Actions)
 
@@ -215,14 +217,14 @@ On every push to **`main`** (and manual **Run workflow**):
 
 ### Versioning
 
-- Default on main: `{Cargo.toml version}-ci.{shortsha}` e.g. `0.1.1-ci.a1b2c3d`
-- Manual run: optional **version_override** input (e.g. `0.1.1`)
+- Default: `{Cargo.toml version}-ci.{shortsha}` e.g. `0.1.2-ci.a1b2c3d`
+- Optional **version_override** input (e.g. `0.1.2`) for a clean release tag
 
 ### After secrets are set
 
 ```bash
-git push origin main
-# or: GitHub → Actions → Publish CLI → Run workflow
+# GitHub → Actions → Publish CLI → Run workflow
+# Optionally set version_override to 0.1.2
 ```
 
 Then:
@@ -238,7 +240,8 @@ intelli --version
 2. Upload each `intellihelper-{ver}-{platform}`.
 3. Update `stable` (and `alpha` if needed) to the new version string.
 4. Re-upload install scripts only if they changed.
-5. Smoke: `curl -fsSL https://cli.intellihelper.in/install.sh | bash`
+5. Delete older `intellihelper-*` binaries (or use `publish-cli-local.sh --upload`, which prunes automatically).
+6. Smoke: `curl -fsSL https://cli.intellihelper.in/install.sh | bash`
 
 ---
 
